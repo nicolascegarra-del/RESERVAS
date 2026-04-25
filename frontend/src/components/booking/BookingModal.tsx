@@ -125,7 +125,7 @@ function BookingModalInner({
     }
   };
 
-  const onSubmit = (_data: BookingFormValues) => {
+  const onSubmit = () => {
     setApiError(null);
     setStep("summary");
   };
