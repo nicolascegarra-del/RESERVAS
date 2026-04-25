@@ -1,0 +1,111 @@
+"""
+Schemas Pydantic para el panel de super admin.
+
+Cubre gestión de tenants (empresas), configuración por empresa
+(Stripe + SMTP) y gestión de usuarios con sus roles.
+"""
+
+from datetime import datetime
+from uuid import UUID
+
+from pydantic import BaseModel, EmailStr, Field
+
+from app.models.user import UserRole
+
+
+# ─── Tenants ──────────────────────────────────────────────────────────────────
+
+
+class TenantCreate(BaseModel):
+    name: str = Field(max_length=255)
+    slug: str = Field(max_length=100, pattern=r"^[a-z0-9-]+$")
+
+
+class TenantUpdate(BaseModel):
+    name: str | None = Field(default=None, max_length=255)
+    slug: str | None = Field(default=None, max_length=100, pattern=r"^[a-z0-9-]+$")
+    is_active: bool | None = None
+
+
+class TenantRead(BaseModel):
+    id: UUID
+    name: str
+    slug: str
+    is_active: bool
+    stripe_enabled: bool
+    smtp_enabled: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ─── Configuración por empresa (Stripe + SMTP) ────────────────────────────────
+
+MASKED = "****"
+
+
+class TenantConfigRead(BaseModel):
+    """Config con credenciales enmascaradas — nunca devolver los secretos reales."""
+
+    stripe_enabled: bool
+    stripe_secret_key_set: bool  # True si hay un valor configurado
+    stripe_webhook_secret_set: bool
+    stripe_currency: str
+
+    smtp_enabled: bool
+    smtp_host: str | None
+    smtp_port: int
+    smtp_user: str | None
+    smtp_password_set: bool  # True si hay un valor configurado
+    smtp_from: str | None
+
+    model_config = {"from_attributes": True}
+
+
+class TenantConfigUpdate(BaseModel):
+    stripe_enabled: bool | None = None
+    stripe_secret_key: str | None = None  # Si se envía None → borrar
+    stripe_webhook_secret: str | None = None
+    stripe_currency: str | None = Field(default=None, max_length=3)
+
+    smtp_enabled: bool | None = None
+    smtp_host: str | None = None
+    smtp_port: int | None = Field(default=None, ge=1, le=65535)
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    smtp_from: str | None = None
+
+
+# ─── Usuarios ─────────────────────────────────────────────────────────────────
+
+
+class AdminUserCreate(BaseModel):
+    email: EmailStr
+    full_name: str = Field(max_length=255)
+    password: str = Field(min_length=8)
+    role: UserRole
+    tenant_id: UUID | None = None  # Null solo para super_admin
+
+
+class AdminUserUpdate(BaseModel):
+    full_name: str | None = Field(default=None, max_length=255)
+    role: UserRole | None = None
+    tenant_id: UUID | None = None
+    is_active: bool | None = None
+
+
+class AdminUserRead(BaseModel):
+    id: UUID
+    email: str
+    full_name: str
+    role: UserRole
+    tenant_id: UUID | None
+    tenant_name: str | None  # Enriquecido en el endpoint
+    is_active: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class PasswordReset(BaseModel):
+    new_password: str = Field(min_length=8)

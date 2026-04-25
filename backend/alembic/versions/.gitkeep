@@ -1,0 +1,3 @@
+# Las migraciones de Alembic se generan aquí con:
+# alembic revision --autogenerate -m "descripcion"
+# alembic upgrade head

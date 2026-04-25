@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+@theme {
+  /* ── Klyp color tokens ─────────────────────────────────────────────────── */
+  --color-klyp-navy: #051937;
+  --color-klyp-navy-light: #1a3a6b;
+  --color-klyp-accent: #2e6db4;
+  --color-klyp-pale: #e8edf5;
+  --color-klyp-gray: #6b7280;
+  --color-klyp-text-dark: #374151;
+
+  /* ── Tipografía Klyp ───────────────────────────────────────────────────── */
+  --font-display: "Nunito", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+@layer base {
+  :root {
+    /* CSS custom properties para uso directo fuera de Tailwind */
+    --klyp-navy: #051937;
+    --klyp-navy-light: #1a3a6b;
+    --klyp-accent: #2e6db4;
+    --klyp-pale: #e8edf5;
+    --klyp-gray: #6b7280;
+    --klyp-text-dark: #374151;
+  }
+
+  body {
+    @apply bg-white text-klyp-text-dark antialiased;
+    font-family: var(--font-inter), Inter, sans-serif;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-nunito), var(--font-display);
+  }
+}
