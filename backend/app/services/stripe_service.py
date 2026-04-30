@@ -56,7 +56,7 @@ def create_checkout_session(
 
     session = client.checkout.sessions.create(
         params={
-            "automatic_payment_methods": {"enabled": True},
+            "payment_method_types": ["card", "paypal"],
             "line_items": [
                 {
                     "price_data": {
