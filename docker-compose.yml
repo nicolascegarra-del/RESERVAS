@@ -4,8 +4,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
     environment:
       - APP_ENV=${APP_ENV:-development}
       - APP_SECRET_KEY=${APP_SECRET_KEY:-changeme-dev-only}
@@ -35,8 +35,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     environment:
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
       - NEXT_PUBLIC_APP_NAME=${NEXT_PUBLIC_APP_NAME:-Klyp RESERVAS}
@@ -50,8 +50,8 @@ services:
   # ── PostgreSQL 16 ─────────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
-    ports:
-      - "5432:5432"
+    expose:
+      - "5432"
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-reservas}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-reservas}
@@ -104,8 +104,8 @@ services:
   # ── Redis 7 ───────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    expose:
+      - "6379"
     volumes:
       - redis_data:/data
     healthcheck:
