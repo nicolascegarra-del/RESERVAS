@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Eye, EyeOff, Loader2, Save } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, ExternalLink, Loader2, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -107,6 +107,35 @@ export default function TenantConfigPage() {
           <p className="text-sm text-klyp-gray">Configuración de Stripe y SMTP</p>
         </div>
       </div>
+
+      {/* Página de inicio pública */}
+      {tenant?.slug && (
+        <div className="bg-klyp-pale/50 rounded-lg border border-klyp-pale p-4 flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-klyp-gray mb-0.5">
+              Página de inicio pública
+            </p>
+            <p className="text-sm font-mono text-klyp-accent break-all">
+              {typeof window !== "undefined" ? window.location.origin : ""}/{tenant.slug}
+            </p>
+          </div>
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="shrink-0 min-h-[44px] border-klyp-accent text-klyp-accent hover:bg-klyp-accent hover:text-white"
+          >
+            <a
+              href={`/${tenant.slug}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <ExternalLink className="mr-2 h-4 w-4" />
+              Abrir
+            </a>
+          </Button>
+        </div>
+      )}
 
       {/* Stripe */}
       <div className="bg-white rounded-lg border border-klyp-pale p-6 space-y-4">

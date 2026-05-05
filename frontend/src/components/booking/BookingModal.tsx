@@ -18,7 +18,6 @@ import { Label } from "@/components/ui/label";
 import axios from "axios";
 import type { PublicTypeAvailability } from "@/lib/publicApi";
 
-const SLUG = process.env["NEXT_PUBLIC_TENANT_SLUG"] ?? "camping-el-pinar";
 const API_URL = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:8000";
 const GOOGLE_CLIENT_ID = process.env["NEXT_PUBLIC_GOOGLE_CLIENT_ID"] ?? "";
 
@@ -56,6 +55,7 @@ interface BookingModalProps {
   nights: number;
   numPersons: number;
   accentColor?: string;
+  tenantSlug: string;
 }
 
 function BookingModalInner({
@@ -67,6 +67,7 @@ function BookingModalInner({
   nights,
   numPersons,
   accentColor = "#2E6DB4",
+  tenantSlug,
 }: BookingModalProps) {
   const [step, setStep] = useState<Step>("auth");
   const [authSource, setAuthSource] = useState<AuthSource>(null);
@@ -150,7 +151,7 @@ function BookingModalInner({
     setApiError(null);
     try {
       const res = await axios.post<{ reservation_id: string; stripe_checkout_url: string }>(
-        `${API_URL}/api/v1/public/${SLUG}/reservations`,
+        `${API_URL}/api/v1/public/${tenantSlug}/reservations`,
         {
           unit_id:               values.unit_id,
           accommodation_type_id: result.type_id,

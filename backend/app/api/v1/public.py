@@ -11,6 +11,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -39,6 +40,37 @@ from app.schemas.tenant import TenantBrandingRead
 router = APIRouter(prefix="/public", tags=["Público"])
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
+
+
+class PublicTenantInfo(BaseModel):
+    slug: str
+    name: str
+    logo_url: str | None = None
+    primary_color: str | None = None
+    accent_color: str | None = None
+
+
+@router.get(
+    "/tenants",
+    response_model=list[PublicTenantInfo],
+    summary="Lista de tenants públicos activos",
+    description="Devuelve todos los tenants activos para el selector de empresa en la landing.",
+)
+async def list_public_tenants(session: SessionDep) -> list[PublicTenantInfo]:
+    result = await session.exec(
+        select(Tenant).where(Tenant.is_active == True).order_by(Tenant.name)  # noqa: E712
+    )
+    tenants = result.all()
+    return [
+        PublicTenantInfo(
+            slug=t.slug,
+            name=t.brand_name or t.name,
+            logo_url=t.logo_url,
+            primary_color=t.primary_color,
+            accent_color=t.accent_color,
+        )
+        for t in tenants
+    ]
 
 
 async def _get_tenant_by_slug(session: AsyncSession, slug: str) -> Tenant:

@@ -3,11 +3,11 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Search, Users, CalendarDays } from "lucide-react";
+import { Search, Users, CalendarDays, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import type { PublicAccommodationType, PublicAvailabilityRequest } from "@/lib/publicApi";
+import type { PublicAccommodationType, PublicAvailabilityRequest, PublicTenantInfo } from "@/lib/publicApi";
 
 const today = new Date().toISOString().split("T")[0]!;
 
@@ -34,6 +34,10 @@ interface BookingSearchFormProps {
   onSearch: (data: PublicAvailabilityRequest) => void;
   isLoading: boolean;
   accentColor?: string;
+  // Props multi-tenant (opcionales — solo en la landing raíz)
+  tenants?: PublicTenantInfo[];
+  selectedTenantSlug?: string;
+  onTenantChange?: (slug: string) => void;
 }
 
 export function BookingSearchForm({
@@ -41,6 +45,9 @@ export function BookingSearchForm({
   onSearch,
   isLoading,
   accentColor = "#2E6DB4",
+  tenants,
+  selectedTenantSlug = "",
+  onTenantChange,
 }: BookingSearchFormProps) {
   const {
     register,
@@ -68,11 +75,36 @@ export function BookingSearchForm({
     });
   };
 
+  const showTenantSelector = tenants && tenants.length > 0;
+
   return (
     <form
       onSubmit={handleSubmit(onSubmit)}
       className="w-full rounded-xl bg-white shadow-lg border border-klyp-pale p-4 md:p-6"
     >
+      {/* Selector de empresa (solo en landing multi-tenant) */}
+      {showTenantSelector && (
+        <div className="mb-4 space-y-1.5">
+          <Label htmlFor="tenant_slug" className="flex items-center gap-1.5 text-klyp-text-dark">
+            <Building2 className="h-4 w-4 text-klyp-accent" />
+            Empresa
+          </Label>
+          <select
+            id="tenant_slug"
+            value={selectedTenantSlug}
+            onChange={(e) => onTenantChange?.(e.target.value)}
+            className="flex h-[44px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <option value="">Todas las empresas</option>
+            {tenants.map((t) => (
+              <option key={t.slug} value={t.slug}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Fecha de entrada */}
         <div className="space-y-1.5">
@@ -123,7 +155,8 @@ export function BookingSearchForm({
           </Label>
           <select
             id="accommodation_type_id"
-            className="flex h-[44px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            disabled={showTenantSelector && !selectedTenantSlug}
+            className="flex h-[44px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
             {...register("accommodation_type_id")}
           >
             <option value="">Todos los alojamientos</option>

@@ -1,7 +1,7 @@
 /**
  * Cliente Axios para endpoints públicos (sin autenticación).
- * Usa NEXT_PUBLIC_TENANT_SLUG para identificar el tenant en la URL.
- * NO incluye interceptores de auth — accesible sin login.
+ * Usa createPublicApi(slug) para instanciar la API de un tenant concreto.
+ * La instancia `publicApi` usa el slug del env var para compatibilidad con /[slug].
  */
 
 import axios from "axios";
@@ -24,6 +24,14 @@ export interface TenantBranding {
   primary_color: string | null;
   accent_color: string | null;
   tagline: string | null;
+}
+
+export interface PublicTenantInfo {
+  slug: string;
+  name: string;
+  logo_url: string | null;
+  primary_color: string | null;
+  accent_color: string | null;
 }
 
 export interface PublicAccommodationType {
@@ -60,22 +68,30 @@ export interface PublicTypeAvailability {
   max_capacity: number;
 }
 
-// ─── API pública ───────────────────────────────────────────────────────────────
+// ─── Factory por tenant ────────────────────────────────────────────────────────
 
-export const publicApi = {
+export const createPublicApi = (slug: string) => ({
   getBranding: () =>
-    publicClient.get<TenantBranding>(
-      `/api/v1/public/${TENANT_SLUG}/branding`,
-    ),
+    publicClient.get<TenantBranding>(`/api/v1/public/${slug}/branding`),
 
   getAccommodationTypes: () =>
     publicClient.get<PublicAccommodationType[]>(
-      `/api/v1/public/${TENANT_SLUG}/accommodation-types`,
+      `/api/v1/public/${slug}/accommodation-types`,
     ),
 
   checkAvailability: (data: PublicAvailabilityRequest) =>
     publicClient.post<PublicTypeAvailability[]>(
-      `/api/v1/public/${TENANT_SLUG}/availability`,
+      `/api/v1/public/${slug}/availability`,
       data,
     ),
+});
+
+// Instancia por defecto (usada en /[slug] cuando viene del env var)
+export const publicApi = createPublicApi(TENANT_SLUG);
+
+// ─── API global: lista de tenants ─────────────────────────────────────────────
+
+export const tenantsApi = {
+  list: () =>
+    publicClient.get<PublicTenantInfo[]>(`/api/v1/public/tenants`),
 };

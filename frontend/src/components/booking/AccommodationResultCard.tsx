@@ -32,6 +32,7 @@ interface AccommodationResultCardProps {
   checkOut: string;
   numPersons: number;
   accentColor?: string;
+  tenantSlug: string;
 }
 
 export function AccommodationResultCard({
@@ -41,6 +42,7 @@ export function AccommodationResultCard({
   checkOut,
   numPersons,
   accentColor = "#2E6DB4",
+  tenantSlug,
 }: AccommodationResultCardProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const availableUnits = result.available_units.filter((u) => u.is_available);
@@ -175,6 +177,7 @@ export function AccommodationResultCard({
       nights={nights}
       numPersons={numPersons}
       accentColor={accentColor}
+      tenantSlug={tenantSlug}
     />
     </>
   );
