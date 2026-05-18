@@ -6,7 +6,6 @@ Create Date: 2026-05-18
 """
 
 from alembic import op
-import sqlalchemy as sa
 
 revision = "002_tenant_user_limits"
 down_revision = "001_fiscal_roles"
@@ -15,16 +14,10 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "tenants",
-        sa.Column("max_company_admins", sa.Integer(), nullable=False, server_default="5"),
-    )
-    op.add_column(
-        "tenants",
-        sa.Column("max_reception_users", sa.Integer(), nullable=False, server_default="20"),
-    )
+    op.execute("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS max_company_admins INTEGER NOT NULL DEFAULT 5")
+    op.execute("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS max_reception_users INTEGER NOT NULL DEFAULT 20")
 
 
 def downgrade() -> None:
-    op.drop_column("tenants", "max_reception_users")
-    op.drop_column("tenants", "max_company_admins")
+    op.execute("ALTER TABLE tenants DROP COLUMN IF EXISTS max_reception_users")
+    op.execute("ALTER TABLE tenants DROP COLUMN IF EXISTS max_company_admins")
