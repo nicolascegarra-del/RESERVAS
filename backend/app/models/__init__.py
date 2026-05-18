@@ -12,6 +12,7 @@ from app.models.cancellation import CancellationPolicy, RefundOrder, RefundOrder
 from app.models.pricing import ExtraPrice, PricingModel, Season
 from app.models.change_request import ChangeRequestStatus, ChangeRequestType, ReservationChangeRequest
 from app.models.reservation import Reservation, ReservationStatus
+from app.models.role_permission import RolePermission
 from app.models.tenant import Tenant
 from app.models.user import User, UserRole
 
@@ -36,4 +37,5 @@ __all__ = [
     "CancellationPolicy",
     "RefundOrder",
     "RefundOrderStatus",
+    "RolePermission",
 ]

@@ -1,8 +1,5 @@
 """
 Schemas Pydantic para el panel de super admin.
-
-Cubre gestión de tenants (empresas), configuración por empresa
-(Stripe + SMTP) y gestión de usuarios con sus roles.
 """
 
 from datetime import datetime
@@ -19,12 +16,30 @@ from app.models.user import UserRole
 class TenantCreate(BaseModel):
     name: str = Field(max_length=255)
     slug: str = Field(max_length=100, pattern=r"^[a-z0-9-]+$")
+    legal_name: str | None = Field(default=None, max_length=255)
+    cif: str | None = Field(default=None, max_length=20)
+    address: str | None = Field(default=None, max_length=500)
+    postal_code: str | None = Field(default=None, max_length=10)
+    municipality: str | None = Field(default=None, max_length=255)
+    province: str | None = Field(default=None, max_length=255)
+    contact_email: str | None = Field(default=None, max_length=255)
+    contact_phone: str | None = Field(default=None, max_length=50)
+    bank_account: str | None = Field(default=None, max_length=50)
 
 
 class TenantUpdate(BaseModel):
     name: str | None = Field(default=None, max_length=255)
     slug: str | None = Field(default=None, max_length=100, pattern=r"^[a-z0-9-]+$")
     is_active: bool | None = None
+    legal_name: str | None = Field(default=None, max_length=255)
+    cif: str | None = Field(default=None, max_length=20)
+    address: str | None = Field(default=None, max_length=500)
+    postal_code: str | None = Field(default=None, max_length=10)
+    municipality: str | None = Field(default=None, max_length=255)
+    province: str | None = Field(default=None, max_length=255)
+    contact_email: str | None = Field(default=None, max_length=255)
+    contact_phone: str | None = Field(default=None, max_length=50)
+    bank_account: str | None = Field(default=None, max_length=50)
 
 
 class TenantRead(BaseModel):
@@ -35,28 +50,32 @@ class TenantRead(BaseModel):
     stripe_enabled: bool
     smtp_enabled: bool
     created_at: datetime
+    legal_name: str | None
+    cif: str | None
+    address: str | None
+    postal_code: str | None
+    municipality: str | None
+    province: str | None
+    contact_email: str | None
+    contact_phone: str | None
+    bank_account: str | None
 
     model_config = {"from_attributes": True}
 
 
 # ─── Configuración por empresa (Stripe + SMTP) ────────────────────────────────
 
-MASKED = "****"
-
 
 class TenantConfigRead(BaseModel):
-    """Config con credenciales enmascaradas — nunca devolver los secretos reales."""
-
     stripe_enabled: bool
-    stripe_secret_key_set: bool  # True si hay un valor configurado
+    stripe_secret_key_set: bool
     stripe_webhook_secret_set: bool
     stripe_currency: str
-
     smtp_enabled: bool
     smtp_host: str | None
     smtp_port: int
     smtp_user: str | None
-    smtp_password_set: bool  # True si hay un valor configurado
+    smtp_password_set: bool
     smtp_from: str | None
 
     model_config = {"from_attributes": True}
@@ -64,10 +83,9 @@ class TenantConfigRead(BaseModel):
 
 class TenantConfigUpdate(BaseModel):
     stripe_enabled: bool | None = None
-    stripe_secret_key: str | None = None  # Si se envía None → borrar
+    stripe_secret_key: str | None = None
     stripe_webhook_secret: str | None = None
     stripe_currency: str | None = Field(default=None, max_length=3)
-
     smtp_enabled: bool | None = None
     smtp_host: str | None = None
     smtp_port: int | None = Field(default=None, ge=1, le=65535)
@@ -84,7 +102,7 @@ class AdminUserCreate(BaseModel):
     full_name: str = Field(max_length=255)
     password: str = Field(min_length=8)
     role: UserRole
-    tenant_id: UUID | None = None  # Null solo para super_admin
+    tenant_id: UUID | None = None
 
 
 class AdminUserUpdate(BaseModel):
@@ -100,7 +118,7 @@ class AdminUserRead(BaseModel):
     full_name: str
     role: UserRole
     tenant_id: UUID | None
-    tenant_name: str | None  # Enriquecido en el endpoint
+    tenant_name: str | None
     is_active: bool
     created_at: datetime
 
@@ -109,3 +127,21 @@ class AdminUserRead(BaseModel):
 
 class PasswordReset(BaseModel):
     new_password: str = Field(min_length=8)
+
+
+# ─── Permisos por rol ─────────────────────────────────────────────────────────
+
+
+class RolePermissionRead(BaseModel):
+    role: str
+    permission_key: str
+    label: str
+    is_enabled: bool
+
+    model_config = {"from_attributes": True}
+
+
+class RolePermissionUpdate(BaseModel):
+    role: str = Field(pattern=r"^(company_admin|reception)$")
+    permission_key: str = Field(max_length=100)
+    is_enabled: bool

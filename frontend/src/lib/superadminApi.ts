@@ -3,7 +3,6 @@ import { useAuthStore } from "@/stores/authStore";
 
 const API_URL = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:8000";
 
-// Cliente con interceptor de auth (usa accessToken del store Zustand)
 const client = axios.create({ baseURL: API_URL });
 
 client.interceptors.request.use((config) => {
@@ -22,6 +21,15 @@ export interface TenantSummary {
   stripe_enabled: boolean;
   smtp_enabled: boolean;
   created_at: string;
+  legal_name: string | null;
+  cif: string | null;
+  address: string | null;
+  postal_code: string | null;
+  municipality: string | null;
+  province: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  bank_account: string | null;
 }
 
 export interface TenantConfig {
@@ -48,14 +56,35 @@ export interface AdminUser {
   created_at: string;
 }
 
+export interface RolePermission {
+  role: string;
+  permission_key: string;
+  label: string;
+  is_enabled: boolean;
+}
+
+export type TenantCreatePayload = {
+  name: string;
+  slug: string;
+  legal_name?: string | null;
+  cif?: string | null;
+  address?: string | null;
+  postal_code?: string | null;
+  municipality?: string | null;
+  province?: string | null;
+  contact_email?: string | null;
+  contact_phone?: string | null;
+  bank_account?: string | null;
+};
+
 // ─── Tenants ─────────────────────────────────────────────────────────────────
 
 export const tenantsApi = {
   list: () => client.get<TenantSummary[]>("/api/v1/superadmin/tenants"),
-  create: (data: { name: string; slug: string }) =>
+  create: (data: TenantCreatePayload) =>
     client.post<TenantSummary>("/api/v1/superadmin/tenants", data),
   get: (id: string) => client.get<TenantSummary>(`/api/v1/superadmin/tenants/${id}`),
-  update: (id: string, data: Partial<{ name: string; slug: string; is_active: boolean }>) =>
+  update: (id: string, data: Partial<TenantCreatePayload & { is_active: boolean }>) =>
     client.patch<TenantSummary>(`/api/v1/superadmin/tenants/${id}`, data),
   deactivate: (id: string) => client.delete(`/api/v1/superadmin/tenants/${id}`),
   getConfig: (id: string) => client.get<TenantConfig>(`/api/v1/superadmin/tenants/${id}/config`),
@@ -86,4 +115,12 @@ export const adminUsersApi = {
   resetPassword: (id: string, newPassword: string) =>
     client.post(`/api/v1/superadmin/users/${id}/reset-password`, { new_password: newPassword }),
   deactivate: (id: string) => client.delete(`/api/v1/superadmin/users/${id}`),
+};
+
+// ─── Permisos por rol ─────────────────────────────────────────────────────────
+
+export const rolePermissionsApi = {
+  list: () => client.get<RolePermission[]>("/api/v1/superadmin/role-permissions"),
+  update: (data: { role: string; permission_key: string; is_enabled: boolean }) =>
+    client.patch<RolePermission>("/api/v1/superadmin/role-permissions", data),
 };

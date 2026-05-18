@@ -37,3 +37,14 @@ class Tenant(SQLModel, table=True):
     smtp_password: str | None = Field(default=None, max_length=500)
     smtp_from: str | None = Field(default=None, max_length=255)
     smtp_enabled: bool = Field(default=False)
+
+    # ─── Datos fiscales y de contacto ────────────────────────────────────────
+    legal_name: str | None = Field(default=None, max_length=255)
+    cif: str | None = Field(default=None, max_length=20)
+    address: str | None = Field(default=None, max_length=500)
+    postal_code: str | None = Field(default=None, max_length=10)
+    municipality: str | None = Field(default=None, max_length=255)
+    province: str | None = Field(default=None, max_length=255)
+    contact_email: str | None = Field(default=None, max_length=255)
+    contact_phone: str | None = Field(default=None, max_length=50)
+    bank_account: str | None = Field(default=None, max_length=50)

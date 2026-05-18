@@ -4,13 +4,14 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, Users, LogOut, ShieldCheck } from "lucide-react";
+import { Building2, Users, LogOut, ShieldCheck, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/stores/authStore";
 
 const NAV = [
   { href: "/empresas", label: "Empresas", icon: Building2 },
   { href: "/usuarios", label: "Usuarios", icon: Users },
+  { href: "/configuracion-roles", label: "Config. Roles", icon: ShieldAlert },
 ];
 
 export default function SuperAdminLayout({ children }: { children: React.ReactNode }) {
@@ -37,7 +38,7 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
             <ShieldCheck className="h-5 w-5 text-klyp-accent" />
             <span className="text-white font-bold text-sm">Super Admin</span>
           </div>
-          <p className="text-white/50 text-xs mt-0.5">Panel de operaciones</p>
+          <p className="text-white/50 text-xs mt-0.5">Panel de Gestión</p>
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1">

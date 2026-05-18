@@ -11,7 +11,7 @@ from sqlalchemy.pool import NullPool
 from sqlmodel import SQLModel
 
 # Importar todos los modelos para que Alembic los detecte
-from app.models import Tenant, User  # noqa: F401
+from app.models import RolePermission, Tenant, User  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:

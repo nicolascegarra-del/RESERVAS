@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { Plus, Loader2, Key, UserX, UserCheck, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,10 +16,10 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { adminUsersApi, tenantsApi, type AdminUser, type TenantSummary } from "@/lib/superadminApi";
 
-const ROLE_LABELS: Record<string, string> = {
+export const ROLE_LABELS: Record<string, string> = {
   super_admin: "Super Admin",
   company_admin: "Admin Empresa",
-  reception: "Recepción",
+  reception: "Gestión",
 };
 
 const ROLE_COLORS: Record<string, string> = {
@@ -28,18 +29,23 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 function CreateUserDialog({
-  open, onOpenChange, tenants, onCreated,
+  open, onOpenChange, tenants, preselectedTenantId, onCreated,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   tenants: TenantSummary[];
+  preselectedTenantId: string;
   onCreated: (u: AdminUser) => void;
 }) {
   const [form, setForm] = useState({
-    email: "", full_name: "", password: "", role: "reception", tenant_id: "",
+    email: "", full_name: "", password: "", role: "reception", tenant_id: preselectedTenantId,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setForm((prev) => ({ ...prev, tenant_id: preselectedTenantId }));
+  }, [preselectedTenantId]);
 
   const handleCreate = async () => {
     if (!form.email || !form.full_name || !form.password) { setError("Todos los campos son obligatorios."); return; }
@@ -50,7 +56,7 @@ function CreateUserDialog({
         tenant_id: form.role === "super_admin" ? null : (form.tenant_id || null),
       });
       onCreated(res.data);
-      setForm({ email: "", full_name: "", password: "", role: "reception", tenant_id: "" });
+      setForm({ email: "", full_name: "", password: "", role: "reception", tenant_id: preselectedTenantId });
       onOpenChange(false);
     } catch (e: unknown) {
       const err = e as { response?: { data?: { detail?: { error?: { message?: string } } } } };
@@ -82,7 +88,7 @@ function CreateUserDialog({
               onChange={(e) => setForm({ ...form, role: e.target.value })}
               className="flex h-[44px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             >
-              <option value="reception">Recepción</option>
+              <option value="reception">Gestión</option>
               <option value="company_admin">Admin Empresa</option>
               <option value="super_admin">Super Admin</option>
             </select>
@@ -113,9 +119,7 @@ function CreateUserDialog({
   );
 }
 
-function ResetPasswordDialog({
-  userId, open, onOpenChange,
-}: { userId: string; open: boolean; onOpenChange: (v: boolean) => void }) {
+function ResetPasswordDialog({ userId, open, onOpenChange }: { userId: string; open: boolean; onOpenChange: (v: boolean) => void }) {
   const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -155,15 +159,18 @@ function ResetPasswordDialog({
   );
 }
 
-export default function UsuariosPage() {
+function UsuariosPageContent() {
+  const searchParams = useSearchParams();
+  const initialTenant = searchParams.get("tenant_id") ?? "";
+
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [tenants, setTenants] = useState<TenantSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [filterTenant, setFilterTenant] = useState("");
+  const [filterTenant, setFilterTenant] = useState(initialTenant);
   const [showCreate, setShowCreate] = useState(false);
   const [resetUserId, setResetUserId] = useState<string | null>(null);
 
-  const fetch = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
       const [uRes, tRes] = await Promise.all([
@@ -176,7 +183,7 @@ export default function UsuariosPage() {
     finally { setIsLoading(false); }
   }, [filterTenant]);
 
-  useEffect(() => { void fetch(); }, [fetch]);
+  useEffect(() => { void fetchData(); }, [fetchData]);
 
   const toggleActive = async (user: AdminUser) => {
     try {
@@ -185,12 +192,20 @@ export default function UsuariosPage() {
     } catch { /* silencioso */ }
   };
 
+  const selectedTenantName = filterTenant
+    ? (tenants.find((t) => t.id === filterTenant)?.name ?? "")
+    : "";
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-klyp-navy">Usuarios</h1>
-          <p className="text-sm text-klyp-gray mt-0.5">Gestión de todos los usuarios del sistema.</p>
+          <p className="text-sm text-klyp-gray mt-0.5">
+            {selectedTenantName
+              ? <>Usuarios de <span className="font-medium text-klyp-navy">{selectedTenantName}</span></>
+              : "Gestión de todos los usuarios del sistema."}
+          </p>
         </div>
         <Button onClick={() => setShowCreate(true)} className="bg-klyp-accent hover:bg-klyp-accent/90 text-white min-h-[44px]">
           <Plus className="mr-2 h-4 w-4" />Nuevo usuario
@@ -213,7 +228,7 @@ export default function UsuariosPage() {
       ) : users.length === 0 ? (
         <div className="text-center py-16 text-klyp-gray">
           <Users className="h-8 w-8 mx-auto mb-2 opacity-40" />
-          <p>No hay usuarios.</p>
+          <p>No hay usuarios{selectedTenantName ? ` en ${selectedTenantName}` : ""}.</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -245,6 +260,7 @@ export default function UsuariosPage() {
         open={showCreate}
         onOpenChange={setShowCreate}
         tenants={tenants}
+        preselectedTenantId={filterTenant}
         onCreated={(u) => setUsers((prev) => [u, ...prev])}
       />
       {resetUserId && (
@@ -255,5 +271,13 @@ export default function UsuariosPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function UsuariosPage() {
+  return (
+    <Suspense fallback={<div className="space-y-3 p-6">{[...Array(4)].map((_, i) => <div key={i} className="h-16 w-full rounded-lg bg-gray-100 animate-pulse" />)}</div>}>
+      <UsuariosPageContent />
+    </Suspense>
   );
 }
