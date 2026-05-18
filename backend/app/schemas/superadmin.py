@@ -25,6 +25,8 @@ class TenantCreate(BaseModel):
     contact_email: str | None = Field(default=None, max_length=255)
     contact_phone: str | None = Field(default=None, max_length=50)
     bank_account: str | None = Field(default=None, max_length=50)
+    max_company_admins: int = Field(default=5, ge=1, le=100)
+    max_reception_users: int = Field(default=20, ge=1, le=500)
 
 
 class TenantUpdate(BaseModel):
@@ -40,6 +42,8 @@ class TenantUpdate(BaseModel):
     contact_email: str | None = Field(default=None, max_length=255)
     contact_phone: str | None = Field(default=None, max_length=50)
     bank_account: str | None = Field(default=None, max_length=50)
+    max_company_admins: int | None = Field(default=None, ge=1, le=100)
+    max_reception_users: int | None = Field(default=None, ge=1, le=500)
 
 
 class TenantRead(BaseModel):
@@ -50,6 +54,7 @@ class TenantRead(BaseModel):
     stripe_enabled: bool
     smtp_enabled: bool
     created_at: datetime
+    logo_url: str | None
     legal_name: str | None
     cif: str | None
     address: str | None
@@ -59,6 +64,8 @@ class TenantRead(BaseModel):
     contact_email: str | None
     contact_phone: str | None
     bank_account: str | None
+    max_company_admins: int
+    max_reception_users: int
 
     model_config = {"from_attributes": True}
 
@@ -145,3 +152,7 @@ class RolePermissionUpdate(BaseModel):
     role: str = Field(pattern=r"^(company_admin|reception)$")
     permission_key: str = Field(max_length=100)
     is_enabled: bool
+
+
+class TenantHardDelete(BaseModel):
+    password: str

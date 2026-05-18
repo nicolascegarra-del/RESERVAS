@@ -21,6 +21,7 @@ export interface TenantSummary {
   stripe_enabled: boolean;
   smtp_enabled: boolean;
   created_at: string;
+  logo_url: string | null;
   legal_name: string | null;
   cif: string | null;
   address: string | null;
@@ -30,6 +31,8 @@ export interface TenantSummary {
   contact_email: string | null;
   contact_phone: string | null;
   bank_account: string | null;
+  max_company_admins: number;
+  max_reception_users: number;
 }
 
 export interface TenantConfig {
@@ -75,6 +78,8 @@ export type TenantCreatePayload = {
   contact_email?: string | null;
   contact_phone?: string | null;
   bank_account?: string | null;
+  max_company_admins?: number;
+  max_reception_users?: number;
 };
 
 // ─── Tenants ─────────────────────────────────────────────────────────────────
@@ -86,7 +91,17 @@ export const tenantsApi = {
   get: (id: string) => client.get<TenantSummary>(`/api/v1/superadmin/tenants/${id}`),
   update: (id: string, data: Partial<TenantCreatePayload & { is_active: boolean }>) =>
     client.patch<TenantSummary>(`/api/v1/superadmin/tenants/${id}`, data),
-  deactivate: (id: string) => client.delete(`/api/v1/superadmin/tenants/${id}`),
+  suspend: (id: string) =>
+    client.patch<TenantSummary>(`/api/v1/superadmin/tenants/${id}/suspend`),
+  hardDelete: (id: string, password: string) =>
+    client.post(`/api/v1/superadmin/tenants/${id}/hard-delete`, { password }),
+  uploadLogo: (id: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return client.post<TenantSummary>(`/api/v1/superadmin/tenants/${id}/logo`, form, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+  },
   getConfig: (id: string) => client.get<TenantConfig>(`/api/v1/superadmin/tenants/${id}/config`),
   updateConfig: (id: string, data: Partial<TenantConfig & {
     stripe_secret_key?: string;

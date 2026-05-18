@@ -2,16 +2,19 @@
 Router de super admin — gestión global de empresas y usuarios.
 """
 
+import os
+import uuid as uuid_lib
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.database import get_session
 from app.core.dependencies import require_role
-from app.core.security import hash_password
+from app.core.security import hash_password, verify_password
 from app.models.role_permission import PERMISSION_DEFAULTS, PERMISSION_LABELS, RolePermission
 from app.models.tenant import Tenant
 from app.models.user import User, UserRole
@@ -25,9 +28,13 @@ from app.schemas.superadmin import (
     TenantConfigRead,
     TenantConfigUpdate,
     TenantCreate,
+    TenantHardDelete,
     TenantRead,
     TenantUpdate,
 )
+
+LOGO_DIR = "/app/media/logos"
+ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp", "image/svg+xml"}
 
 router = APIRouter(prefix="/superadmin", tags=["Super Admin"])
 
@@ -64,6 +71,8 @@ async def create_tenant(data: TenantCreate, _: SuperAdminDep, session: SessionDe
         contact_email=data.contact_email,
         contact_phone=data.contact_phone,
         bank_account=data.bank_account,
+        max_company_admins=data.max_company_admins,
+        max_reception_users=data.max_reception_users,
     )
     session.add(tenant)
     await session.commit()
@@ -99,6 +108,10 @@ async def update_tenant(tenant_id: UUID, data: TenantUpdate, _: SuperAdminDep, s
         value = getattr(data, field)
         if value is not None:
             setattr(tenant, field, value or None)
+    if data.max_company_admins is not None:
+        tenant.max_company_admins = data.max_company_admins
+    if data.max_reception_users is not None:
+        tenant.max_reception_users = data.max_reception_users
 
     session.add(tenant)
     await session.commit()
@@ -106,14 +119,98 @@ async def update_tenant(tenant_id: UUID, data: TenantUpdate, _: SuperAdminDep, s
     return TenantRead.model_validate(tenant)
 
 
-@router.delete("/tenants/{tenant_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def deactivate_tenant(tenant_id: UUID, _: SuperAdminDep, session: SessionDep) -> None:
+@router.patch("/tenants/{tenant_id}/suspend", response_model=TenantRead)
+async def toggle_tenant_suspend(tenant_id: UUID, _: SuperAdminDep, session: SessionDep) -> TenantRead:
     tenant = await session.get(Tenant, tenant_id)
     if not tenant:
         raise HTTPException(status_code=404, detail={"error": {"code": "TENANT_NOT_FOUND", "message": "Empresa no encontrada."}})
-    tenant.is_active = False
+    tenant.is_active = not tenant.is_active
     session.add(tenant)
     await session.commit()
+    await session.refresh(tenant)
+    return TenantRead.model_validate(tenant)
+
+
+@router.post("/tenants/{tenant_id}/hard-delete", status_code=status.HTTP_204_NO_CONTENT)
+async def hard_delete_tenant(
+    tenant_id: UUID,
+    data: TenantHardDelete,
+    current_user: SuperAdminDep,
+    session: SessionDep,
+) -> None:
+    db_user = await session.get(User, current_user.id)
+    if not db_user or not verify_password(data.password, db_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": {"code": "INVALID_PASSWORD", "message": "Contraseña incorrecta."}},
+        )
+    tenant = await session.get(Tenant, tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail={"error": {"code": "TENANT_NOT_FOUND", "message": "Empresa no encontrada."}})
+
+    tid = str(tenant_id)
+    # Cascade delete en orden de dependencias FK
+    for stmt in [
+        "DELETE FROM refund_orders WHERE tenant_id = :tid",
+        "DELETE FROM reservation_change_requests WHERE tenant_id = :tid",
+        "DELETE FROM reservations WHERE tenant_id = :tid",
+        "DELETE FROM extra_prices WHERE tenant_id = :tid",
+        "DELETE FROM seasons WHERE tenant_id = :tid",
+        "DELETE FROM pricing_models WHERE tenant_id = :tid",
+        "DELETE FROM field_definitions WHERE tenant_id = :tid",
+        "DELETE FROM accommodation_units WHERE tenant_id = :tid",
+        "DELETE FROM cancellation_policies WHERE tenant_id = :tid",
+        "DELETE FROM extras WHERE tenant_id = :tid",
+        "DELETE FROM accommodation_types WHERE tenant_id = :tid",
+        "DELETE FROM users WHERE tenant_id = :tid",
+        "DELETE FROM tenants WHERE id = :tid",
+    ]:
+        await session.execute(text(stmt), {"tid": tid})
+
+    # Eliminar logo si existe
+    if tenant.logo_url:
+        logo_path = f"/app{tenant.logo_url}"
+        if os.path.exists(logo_path):
+            os.remove(logo_path)
+
+    await session.commit()
+
+
+@router.post("/tenants/{tenant_id}/logo", response_model=TenantRead)
+async def upload_tenant_logo(
+    tenant_id: UUID,
+    _: SuperAdminDep,
+    session: SessionDep,
+    file: UploadFile = File(...),
+) -> TenantRead:
+    tenant = await session.get(Tenant, tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail={"error": {"code": "TENANT_NOT_FOUND", "message": "Empresa no encontrada."}})
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"error": {"code": "INVALID_FILE_TYPE", "message": "Solo se permiten PNG, JPEG, WebP o SVG."}},
+        )
+
+    ext = (file.filename or "logo").rsplit(".", 1)[-1].lower()
+    filename = f"{uuid_lib.uuid4()}.{ext}"
+    os.makedirs(LOGO_DIR, exist_ok=True)
+
+    # Eliminar logo anterior si existe
+    if tenant.logo_url:
+        old_path = f"/app{tenant.logo_url}"
+        if os.path.exists(old_path):
+            os.remove(old_path)
+
+    contents = await file.read()
+    with open(f"{LOGO_DIR}/{filename}", "wb") as f:
+        f.write(contents)
+
+    tenant.logo_url = f"/media/logos/{filename}"
+    session.add(tenant)
+    await session.commit()
+    await session.refresh(tenant)
+    return TenantRead.model_validate(tenant)
 
 
 # ─── Configuración por empresa (Stripe + SMTP) ────────────────────────────────
@@ -218,6 +315,26 @@ async def create_user(data: AdminUserCreate, _: SuperAdminDep, session: SessionD
         raise HTTPException(status_code=409, detail={"error": {"code": "EMAIL_TAKEN", "message": "El email ya está registrado."}})
     if data.role != UserRole.super_admin and not data.tenant_id:
         raise HTTPException(status_code=422, detail={"error": {"code": "TENANT_REQUIRED", "message": "Los roles company_admin y reception requieren tenant_id."}})
+
+    # Verificar límites de usuarios por empresa
+    if data.tenant_id and data.role in (UserRole.company_admin, UserRole.reception):
+        tenant = await session.get(Tenant, data.tenant_id)
+        if tenant:
+            count_result = await session.exec(
+                select(User).where(User.tenant_id == data.tenant_id, User.role == data.role, User.is_active == True)  # noqa: E712
+            )
+            current_count = len(count_result.all())
+            if data.role == UserRole.company_admin and current_count >= tenant.max_company_admins:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={"error": {"code": "USER_LIMIT_REACHED", "message": f"Esta empresa ha alcanzado el límite de {tenant.max_company_admins} admin(s) de empresa."}},
+                )
+            if data.role == UserRole.reception and current_count >= tenant.max_reception_users:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={"error": {"code": "USER_LIMIT_REACHED", "message": f"Esta empresa ha alcanzado el límite de {tenant.max_reception_users} usuario(s) de gestión."}},
+                )
+
     user = User(
         email=str(data.email),
         full_name=data.full_name,

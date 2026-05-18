@@ -6,6 +6,8 @@ services:
       dockerfile: Dockerfile
     expose:
       - "8000"
+    volumes:
+      - media_data:/app/media
     environment:
       - APP_ENV=${APP_ENV:-development}
       - APP_SECRET_KEY=${APP_SECRET_KEY:-changeme-dev-only}
@@ -118,3 +120,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  media_data:

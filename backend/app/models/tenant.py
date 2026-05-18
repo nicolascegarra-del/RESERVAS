@@ -48,3 +48,7 @@ class Tenant(SQLModel, table=True):
     contact_email: str | None = Field(default=None, max_length=255)
     contact_phone: str | None = Field(default=None, max_length=50)
     bank_account: str | None = Field(default=None, max_length=50)
+
+    # ─── Límites de usuarios por empresa ─────────────────────────────────────
+    max_company_admins: int = Field(default=5)
+    max_reception_users: int = Field(default=20)
