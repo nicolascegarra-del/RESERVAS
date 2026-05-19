@@ -166,17 +166,39 @@ function CreateTenantDialog({ open, onOpenChange, onCreated }: {
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>Nueva Empresa</DialogTitle></DialogHeader>
-        <div className="py-2"><TenantFormFields form={form} setForm={setForm} /></div>
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancelar</Button>
-          <Button onClick={() => void handleCreate()} disabled={saving} className="bg-klyp-accent hover:bg-klyp-accent/90 text-white">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Crear Empresa"}
-          </Button>
-        </DialogFooter>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) { setForm(emptyForm()); setError(null); } onOpenChange(v); }}>
+      <DialogContent className="w-full max-w-[95vw] sm:max-w-3xl max-h-[90vh] overflow-y-auto p-0">
+        {/* ── Cabecera visual ── */}
+        <div className="bg-klyp-navy px-6 py-5 rounded-t-lg">
+          <div className="flex items-center gap-4">
+            <div className="h-14 w-14 rounded-xl border-2 border-white/20 bg-white/10 flex items-center justify-center shrink-0">
+              <Building2 className="h-7 w-7 text-white/60" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-white font-bold text-lg leading-tight">
+                {form.name || "Nueva Empresa"}
+              </h2>
+              <p className="text-white/50 text-xs mt-0.5">{form.slug || "slug-de-la-empresa"}</p>
+            </div>
+            <span className="shrink-0 text-xs px-2.5 py-1 rounded-full font-medium bg-green-400/20 text-green-300 border border-green-400/30">
+              Nueva
+            </span>
+          </div>
+        </div>
+
+        <div className="px-6 pb-6 pt-4">
+          <TenantFormFields form={form} setForm={setForm} />
+
+          {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
+
+          <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-gray-100">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancelar</Button>
+            <Button onClick={() => void handleCreate()} disabled={saving} className="bg-klyp-accent hover:bg-klyp-accent/90 text-white">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              {saving ? "Creando..." : "Crear Empresa"}
+            </Button>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );
