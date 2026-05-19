@@ -55,12 +55,12 @@ function TenantFormFields({ form, setForm }: {
         <p className="text-xs font-semibold text-klyp-gray uppercase tracking-wide mb-3">Datos básicos</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1.5 col-span-full">
-            <Label>Nombre comercial *</Label>
-            <Input {...field("name")} />
+            <Label>Nombre comercial <span className="text-red-500">*</span></Label>
+            <Input {...field("name")} required />
           </div>
           <div className="space-y-1.5 col-span-full">
-            <Label>Slug (URL único) *</Label>
-            <Input {...field("slug")} placeholder="mi-empresa" />
+            <Label>Slug (URL único) <span className="text-red-500">*</span></Label>
+            <Input {...field("slug")} placeholder="mi-empresa" required />
           </div>
         </div>
       </div>
@@ -123,6 +123,7 @@ function TenantFormFields({ form, setForm }: {
           </div>
         </div>
       </div>
+      <p className="text-xs text-klyp-gray">Los campos con <span className="text-red-500 font-medium">*</span> son obligatorios. El resto puede completarse después.</p>
     </div>
   );
 }
