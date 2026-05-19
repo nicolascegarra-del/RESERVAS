@@ -837,6 +837,8 @@ type ColKey = "logo" | "nombre" | "cif" | "municipio" | "estado" | "stripe" | "s
 type SortKey = "nombre" | "municipio" | "creada";
 type SortDir = "asc" | "desc";
 
+const STORAGE_KEY_EMPRESAS = "table_cols_empresas";
+
 const ALL_COLS: { key: ColKey; label: string }[] = [
   { key: "logo", label: "Logo" },
   { key: "nombre", label: "Nombre" },
@@ -847,6 +849,8 @@ const ALL_COLS: { key: ColKey; label: string }[] = [
   { key: "smtp", label: "SMTP" },
   { key: "creada", label: "Creada" },
 ];
+
+const DEFAULT_COLS_EMPRESAS = new Set<ColKey>(ALL_COLS.map((c) => c.key));
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 
@@ -862,7 +866,7 @@ export default function EmpresasPage() {
   const [search, setSearch] = useState("");
   const [filterState, setFilterState] = useState<"all" | "active" | "suspended">("all");
 
-  const [visibleCols, setVisibleCols] = useState<Set<ColKey>>(new Set(ALL_COLS.map((c) => c.key)));
+  const [visibleCols, setVisibleCols] = useState<Set<ColKey>>(DEFAULT_COLS_EMPRESAS);
   const [showColMenu, setShowColMenu] = useState(false);
   const colMenuRef = useRef<HTMLDivElement>(null);
 
@@ -879,6 +883,13 @@ export default function EmpresasPage() {
   }, []);
 
   useEffect(() => { void fetchTenants(); }, [fetchTenants]);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY_EMPRESAS);
+      if (stored) setVisibleCols(new Set(JSON.parse(stored) as ColKey[]));
+    } catch { /* ignora datos corruptos */ }
+  }, []);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -972,6 +983,7 @@ export default function EmpresasPage() {
                     onChange={() => setVisibleCols((prev) => {
                       const next = new Set(prev);
                       if (next.has(c.key)) { next.delete(c.key); } else { next.add(c.key); }
+                      localStorage.setItem(STORAGE_KEY_EMPRESAS, JSON.stringify([...next]));
                       return next;
                     })}
                     className="rounded"

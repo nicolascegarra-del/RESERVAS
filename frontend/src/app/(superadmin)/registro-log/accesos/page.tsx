@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { ShieldCheck, RefreshCw, CheckCircle, XCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ShieldCheck, RefreshCw, CheckCircle, XCircle, ChevronLeft, ChevronRight, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -16,6 +16,7 @@ import { accessLogsApi } from "@/lib/api";
 import type { AccessLog } from "@/lib/api";
 
 const PAGE_SIZE = 50;
+const STORAGE_KEY = "table_cols_access_logs";
 
 const EVENT_LABELS: Record<string, string> = {
   login_success: "Login Exitoso",
@@ -35,6 +36,19 @@ const ROLE_LABELS: Record<string, string> = {
   reception: "Recepción",
 };
 
+type ColKey = "evento" | "usuario" | "rol" | "ip" | "detalle" | "fecha";
+
+const ALL_COLS: { key: ColKey; label: string }[] = [
+  { key: "evento",  label: "Evento"  },
+  { key: "usuario", label: "Usuario" },
+  { key: "rol",     label: "Rol"     },
+  { key: "ip",      label: "IP"      },
+  { key: "detalle", label: "Detalle" },
+  { key: "fecha",   label: "Fecha"   },
+];
+
+const DEFAULT_COLS = new Set<ColKey>(ALL_COLS.map((c) => c.key));
+
 function EventIcon({ type }: { type: string }) {
   if (type === "login_success") return <CheckCircle className="h-4 w-4 text-green-600" />;
   return <XCircle className="h-4 w-4 text-red-500" />;
@@ -50,6 +64,39 @@ export default function AccessLogsPage() {
   const [emailSearch, setEmailSearch] = useState("");
   const [emailInput, setEmailInput] = useState("");
 
+  // ─── Columnas persistentes ─────────────────────────────────────────────────
+  const [visibleCols, setVisibleCols] = useState<Set<ColKey>>(DEFAULT_COLS);
+  const [showColMenu, setShowColMenu] = useState(false);
+  const colMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) setVisibleCols(new Set(JSON.parse(stored) as ColKey[]));
+    } catch { /* ignora datos corruptos */ }
+  }, []);
+
+  const toggleCol = (key: ColKey) => {
+    setVisibleCols((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) { next.delete(key); } else { next.add(key); }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([...next]));
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (colMenuRef.current && !colMenuRef.current.contains(e.target as Node)) setShowColMenu(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const col = (k: ColKey) => visibleCols.has(k);
+  const colSpan = visibleCols.size;
+
+  // ─── Datos ────────────────────────────────────────────────────────────────
   const load = useCallback(async (p: number, ef: string, email: string) => {
     setLoading(true);
     try {
@@ -72,18 +119,9 @@ export default function AccessLogsPage() {
 
   useEffect(() => { void load(1, eventFilter, emailSearch); }, [load, eventFilter, emailSearch]);
 
-  function handleEventChange(v: string) {
-    setEventFilter(v);
-    setPage(1);
-  }
-  function handleEmailSearch() {
-    setEmailSearch(emailInput);
-    setPage(1);
-  }
-  function handlePage(p: number) {
-    setPage(p);
-    void load(p, eventFilter, emailSearch);
-  }
+  function handleEventChange(v: string) { setEventFilter(v); setPage(1); }
+  function handleEmailSearch() { setEmailSearch(emailInput); setPage(1); }
+  function handlePage(p: number) { setPage(p); void load(p, eventFilter, emailSearch); }
 
   return (
     <div className="space-y-6">
@@ -111,7 +149,7 @@ export default function AccessLogsPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap gap-3 items-center">
         <Select value={eventFilter} onValueChange={handleEventChange}>
           <SelectTrigger className="w-full sm:w-48">
             <SelectValue placeholder="Tipo de evento" />
@@ -134,6 +172,28 @@ export default function AccessLogsPage() {
             Buscar
           </Button>
         </div>
+
+        {/* Selector de columnas */}
+        <div className="relative ml-auto" ref={colMenuRef}>
+          <Button variant="outline" size="sm" className="h-[44px] gap-2" onClick={() => setShowColMenu((v) => !v)}>
+            <SlidersHorizontal className="h-4 w-4" />Columnas
+          </Button>
+          {showColMenu && (
+            <div className="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10 p-2">
+              {ALL_COLS.map((c) => (
+                <label key={c.key} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 cursor-pointer text-sm">
+                  <input
+                    type="checkbox"
+                    checked={visibleCols.has(c.key)}
+                    onChange={() => toggleCol(c.key)}
+                    className="rounded"
+                  />
+                  {c.label}
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Table */}
@@ -142,53 +202,59 @@ export default function AccessLogsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Evento</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Usuario</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 hidden md:table-cell">Rol</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 hidden lg:table-cell">IP</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 hidden lg:table-cell">Detalle</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Fecha</th>
+                {col("evento")  && <th className="text-left px-4 py-3 font-medium text-gray-600">Evento</th>}
+                {col("usuario") && <th className="text-left px-4 py-3 font-medium text-gray-600">Usuario</th>}
+                {col("rol")     && <th className="text-left px-4 py-3 font-medium text-gray-600">Rol</th>}
+                {col("ip")      && <th className="text-left px-4 py-3 font-medium text-gray-600">IP</th>}
+                {col("detalle") && <th className="text-left px-4 py-3 font-medium text-gray-600">Detalle</th>}
+                {col("fecha")   && <th className="text-left px-4 py-3 font-medium text-gray-600">Fecha</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-gray-400">Cargando…</td>
+                  <td colSpan={colSpan} className="px-4 py-12 text-center text-gray-400">Cargando…</td>
                 </tr>
               )}
               {!loading && items.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-gray-400">
+                  <td colSpan={colSpan} className="px-4 py-12 text-center text-gray-400">
                     No hay registros de acceso
                   </td>
                 </tr>
               )}
               {!loading && items.map((log) => (
                 <tr key={log.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <EventIcon type={log.event_type} />
-                      <Badge className={`text-xs ${EVENT_COLORS[log.event_type] ?? "bg-gray-100 text-gray-600"}`}>
-                        {EVENT_LABELS[log.event_type] ?? log.event_type}
-                      </Badge>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 font-medium text-gray-800">{log.user_email}</td>
-                  <td className="px-4 py-3 hidden md:table-cell text-gray-500 text-xs">
-                    {log.user_role ? (ROLE_LABELS[log.user_role] ?? log.user_role) : "—"}
-                  </td>
-                  <td className="px-4 py-3 hidden lg:table-cell text-gray-500 text-xs font-mono">
-                    {log.ip_address ?? "—"}
-                  </td>
-                  <td className="px-4 py-3 hidden lg:table-cell text-gray-400 text-xs">
-                    {log.detail ?? "—"}
-                  </td>
-                  <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
-                    {new Date(log.accessed_at).toLocaleString("es-ES", {
-                      day: "2-digit", month: "2-digit", year: "numeric",
-                      hour: "2-digit", minute: "2-digit",
-                    })}
-                  </td>
+                  {col("evento") && (
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <EventIcon type={log.event_type} />
+                        <Badge className={`text-xs ${EVENT_COLORS[log.event_type] ?? "bg-gray-100 text-gray-600"}`}>
+                          {EVENT_LABELS[log.event_type] ?? log.event_type}
+                        </Badge>
+                      </div>
+                    </td>
+                  )}
+                  {col("usuario") && <td className="px-4 py-3 font-medium text-gray-800">{log.user_email}</td>}
+                  {col("rol") && (
+                    <td className="px-4 py-3 text-gray-500 text-xs">
+                      {log.user_role ? (ROLE_LABELS[log.user_role] ?? log.user_role) : "—"}
+                    </td>
+                  )}
+                  {col("ip") && (
+                    <td className="px-4 py-3 text-gray-500 text-xs font-mono">{log.ip_address ?? "—"}</td>
+                  )}
+                  {col("detalle") && (
+                    <td className="px-4 py-3 text-gray-400 text-xs">{log.detail ?? "—"}</td>
+                  )}
+                  {col("fecha") && (
+                    <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
+                      {new Date(log.accessed_at).toLocaleString("es-ES", {
+                        day: "2-digit", month: "2-digit", year: "numeric",
+                        hour: "2-digit", minute: "2-digit",
+                      })}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
