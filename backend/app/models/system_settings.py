@@ -1,5 +1,7 @@
 """Configuración global del sistema — singleton (id=1 siempre)."""
 
+from datetime import datetime
+
 from sqlmodel import Field, SQLModel
 
 
@@ -15,3 +17,4 @@ class SystemSettings(SQLModel, table=True):
     smtp_user: str | None = Field(default=None, max_length=255)
     smtp_password: str | None = Field(default=None, max_length=500)
     smtp_from: str | None = Field(default=None, max_length=255)
+    smtp_verified_at: datetime | None = Field(default=None, nullable=True)

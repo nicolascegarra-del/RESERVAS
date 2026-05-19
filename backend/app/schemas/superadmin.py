@@ -84,6 +84,7 @@ class TenantConfigRead(BaseModel):
     smtp_user: str | None
     smtp_password_set: bool
     smtp_from: str | None
+    smtp_verified_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
@@ -179,6 +180,7 @@ class SystemSMTPRead(BaseModel):
     smtp_user: str | None
     smtp_password_set: bool
     smtp_from: str | None
+    smtp_verified_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 

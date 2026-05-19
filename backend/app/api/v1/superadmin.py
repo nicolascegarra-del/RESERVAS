@@ -2,8 +2,11 @@
 Router de super admin — gestión global de empresas y usuarios.
 """
 
+import asyncio
 import os
+import smtplib
 import uuid as uuid_lib
+from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
@@ -12,7 +15,7 @@ from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.crypto import encrypt_secret
+from app.core.crypto import decrypt_secret, encrypt_secret
 from app.core.database import get_session
 from app.core.dependencies import require_role
 from app.core.security import hash_password, verify_password
@@ -219,6 +222,18 @@ async def upload_tenant_logo(
     return TenantRead.model_validate(tenant)
 
 
+# ─── Helper SMTP ──────────────────────────────────────────────────────────────
+
+
+def _test_smtp_connection(host: str, port: int, user: str, password: str | None) -> None:
+    with smtplib.SMTP(host, port, timeout=10) as server:
+        server.ehlo()
+        server.starttls()
+        server.ehlo()
+        if password:
+            server.login(user, password)
+
+
 # ─── Configuración por empresa (Stripe + SMTP) ────────────────────────────────
 
 
@@ -238,6 +253,7 @@ async def get_tenant_config(tenant_id: UUID, _: SuperAdminDep, session: SessionD
         smtp_user=tenant.smtp_user,
         smtp_password_set=bool(tenant.smtp_password),
         smtp_from=tenant.smtp_from,
+        smtp_verified_at=tenant.smtp_verified_at,
     )
 
 
@@ -255,6 +271,14 @@ async def update_tenant_config(tenant_id: UUID, data: TenantConfigUpdate, _: Sup
         tenant.stripe_webhook_secret = encrypt_secret(data.stripe_webhook_secret) if data.stripe_webhook_secret else None
     if data.stripe_currency is not None:
         tenant.stripe_currency = data.stripe_currency
+
+    smtp_changed = any([
+        data.smtp_host is not None,
+        data.smtp_port is not None,
+        data.smtp_user is not None,
+        data.smtp_password is not None,
+        data.smtp_from is not None,
+    ])
     if data.smtp_enabled is not None:
         tenant.smtp_enabled = data.smtp_enabled
     if data.smtp_host is not None:
@@ -267,6 +291,8 @@ async def update_tenant_config(tenant_id: UUID, data: TenantConfigUpdate, _: Sup
         tenant.smtp_password = encrypt_secret(data.smtp_password) if data.smtp_password else None
     if data.smtp_from is not None:
         tenant.smtp_from = data.smtp_from or None
+    if smtp_changed:
+        tenant.smtp_verified_at = None
 
     session.add(tenant)
     await session.commit()
@@ -282,7 +308,33 @@ async def update_tenant_config(tenant_id: UUID, data: TenantConfigUpdate, _: Sup
         smtp_user=tenant.smtp_user,
         smtp_password_set=bool(tenant.smtp_password),
         smtp_from=tenant.smtp_from,
+        smtp_verified_at=tenant.smtp_verified_at,
     )
+
+
+@router.post("/tenants/{tenant_id}/test-smtp", status_code=200)
+async def test_tenant_smtp(tenant_id: UUID, _: SuperAdminDep, session: SessionDep) -> dict:
+    tenant = await session.get(Tenant, tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail={"error": {"code": "TENANT_NOT_FOUND", "message": "Empresa no encontrada."}})
+    if not (tenant.smtp_host and tenant.smtp_user):
+        raise HTTPException(
+            status_code=400,
+            detail={"error": {"code": "SMTP_NOT_CONFIGURED", "message": "Guarda primero el host y usuario SMTP antes de probar."}},
+        )
+    password = decrypt_secret(tenant.smtp_password) if tenant.smtp_password else None
+    try:
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, _test_smtp_connection, tenant.smtp_host, tenant.smtp_port, tenant.smtp_user, password)
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": {"code": "SMTP_CONNECTION_FAILED", "message": f"Error de conexión: {e}"}},
+        )
+    tenant.smtp_verified_at = datetime.utcnow()
+    session.add(tenant)
+    await session.commit()
+    return {"verified_at": tenant.smtp_verified_at.isoformat()}
 
 
 # ─── SMTP global del sistema ──────────────────────────────────────────────────
@@ -308,12 +360,20 @@ async def get_system_smtp(_: SuperAdminDep, session: SessionDep) -> SystemSMTPRe
         smtp_user=s.smtp_user,
         smtp_password_set=bool(s.smtp_password),
         smtp_from=s.smtp_from,
+        smtp_verified_at=s.smtp_verified_at,
     )
 
 
 @router.patch("/system-smtp", response_model=SystemSMTPRead)
 async def update_system_smtp(data: SystemSMTPUpdate, _: SuperAdminDep, session: SessionDep) -> SystemSMTPRead:
     s = await _get_or_create_system_settings(session)
+    smtp_changed = any([
+        data.smtp_host is not None,
+        data.smtp_port is not None,
+        data.smtp_user is not None,
+        data.smtp_password is not None,
+        data.smtp_from is not None,
+    ])
     if data.smtp_enabled is not None:
         s.smtp_enabled = data.smtp_enabled
     if data.smtp_host is not None:
@@ -326,6 +386,8 @@ async def update_system_smtp(data: SystemSMTPUpdate, _: SuperAdminDep, session: 
         s.smtp_password = encrypt_secret(data.smtp_password) if data.smtp_password else None
     if data.smtp_from is not None:
         s.smtp_from = data.smtp_from or None
+    if smtp_changed:
+        s.smtp_verified_at = None
     session.add(s)
     await session.commit()
     await session.refresh(s)
@@ -336,7 +398,31 @@ async def update_system_smtp(data: SystemSMTPUpdate, _: SuperAdminDep, session: 
         smtp_user=s.smtp_user,
         smtp_password_set=bool(s.smtp_password),
         smtp_from=s.smtp_from,
+        smtp_verified_at=s.smtp_verified_at,
     )
+
+
+@router.post("/system-smtp/test", status_code=200)
+async def test_system_smtp(_: SuperAdminDep, session: SessionDep) -> dict:
+    s = await _get_or_create_system_settings(session)
+    if not (s.smtp_host and s.smtp_user):
+        raise HTTPException(
+            status_code=400,
+            detail={"error": {"code": "SMTP_NOT_CONFIGURED", "message": "Guarda primero el host y usuario SMTP antes de probar."}},
+        )
+    password = decrypt_secret(s.smtp_password) if s.smtp_password else None
+    try:
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, _test_smtp_connection, s.smtp_host, s.smtp_port, s.smtp_user, password)
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": {"code": "SMTP_CONNECTION_FAILED", "message": f"Error de conexión: {e}"}},
+        )
+    s.smtp_verified_at = datetime.utcnow()
+    session.add(s)
+    await session.commit()
+    return {"verified_at": s.smtp_verified_at.isoformat()}
 
 
 # ─── Usuarios ─────────────────────────────────────────────────────────────────

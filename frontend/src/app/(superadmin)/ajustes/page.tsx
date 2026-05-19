@@ -37,8 +37,10 @@ export default function ConfiguracionPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [verifiedAt, setVerifiedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [passwordSet, setPasswordSet] = useState(false);
 
   const [form, setForm] = useState<SMTPForm>({
     smtp_enabled: false,
@@ -61,14 +63,14 @@ export default function ConfiguracionPage() {
           smtp_password: "",
           smtp_from: d.smtp_from ?? "",
         });
-        setPasswordSet(d.smtp_password_set);
+        setVerifiedAt(d.smtp_verified_at ?? null);
       })
       .catch(() => setError("Error al cargar la configuración."))
       .finally(() => setLoading(false));
   }, []);
 
   const handleSave = async () => {
-    setSaving(true); setError(null); setSaved(false);
+    setSaving(true); setError(null); setSaved(false); setTestResult(null);
     try {
       const payload: Record<string, unknown> = {
         smtp_enabled: form.smtp_enabled,
@@ -80,13 +82,25 @@ export default function ConfiguracionPage() {
       if (form.smtp_password) payload["smtp_password"] = form.smtp_password;
 
       const res = await systemApi.updateSMTP(payload as Parameters<typeof systemApi.updateSMTP>[0]);
-      setPasswordSet(res.data.smtp_password_set);
       setForm((p) => ({ ...p, smtp_password: "" }));
+      setVerifiedAt(res.data.smtp_verified_at ?? null);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch {
       setError("Error al guardar la configuración.");
     } finally { setSaving(false); }
+  };
+
+  const handleTest = async () => {
+    setTesting(true); setTestResult(null);
+    try {
+      const res = await systemApi.testSMTP();
+      setTestResult({ ok: true, message: "Conexión verificada correctamente." });
+      setVerifiedAt(res.data.verified_at);
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: { error?: { message?: string } } } } };
+      setTestResult({ ok: false, message: err.response?.data?.detail?.error?.message ?? "Error al conectar." });
+    } finally { setTesting(false); }
   };
 
   const f = (key: keyof SMTPForm) => ({
@@ -143,19 +157,42 @@ export default function ConfiguracionPage() {
                 <Input
                   type="password"
                   {...f("smtp_password")}
-                  placeholder={passwordSet ? "••••••••••••" : "Contraseña SMTP"}
+                  placeholder="••••••••••••"
                 />
-                {passwordSet && (
-                  <p className="text-xs text-green-600 flex items-center gap-1">
-                    <CheckCircle2 className="h-3 w-3" />
-                    Contraseña configurada — deja en blanco para mantener la actual
-                  </p>
-                )}
               </div>
               <div className="space-y-1.5 sm:col-span-3">
                 <Label>Email remitente (From)</Label>
                 <Input type="email" {...f("smtp_from")} placeholder="noreply@tudominio.com" />
               </div>
+            </div>
+
+            {/* Estado de verificación + botón */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-1">
+              <div className="flex-1">
+                {testResult ? (
+                  <p className={`text-sm flex items-center gap-1.5 ${testResult.ok ? "text-green-600" : "text-red-600"}`}>
+                    <span className={`inline-block h-2 w-2 rounded-full ${testResult.ok ? "bg-green-500" : "bg-red-500"}`} />
+                    {testResult.message}
+                  </p>
+                ) : verifiedAt ? (
+                  <p className="text-sm text-green-600 flex items-center gap-1.5">
+                    <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+                    Configuración probada y funcionando — {new Date(verifiedAt).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" })}
+                  </p>
+                ) : (
+                  <p className="text-sm text-klyp-gray">Guarda los datos y pulsa &quot;Probar Conexión&quot;.</p>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={testing || !form.smtp_host}
+                onClick={() => void handleTest()}
+                className="shrink-0"
+              >
+                {testing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                {testing ? "Probando..." : "Probar Conexión"}
+              </Button>
             </div>
 
             {/* Info sobre la prioridad */}
@@ -183,7 +220,7 @@ export default function ConfiguracionPage() {
               className="bg-klyp-accent hover:bg-klyp-accent/90 text-white"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-              {saving ? "Guardando..." : "Guardar configuración"}
+              {saving ? "Guardando..." : "Guardar Configuración"}
             </Button>
           </div>
         </div>

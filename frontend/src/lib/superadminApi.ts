@@ -36,6 +36,7 @@ export interface TenantConfig {
   smtp_user: string | null;
   smtp_password_set: boolean;
   smtp_from: string | null;
+  smtp_verified_at: string | null;
 }
 
 export interface AdminUser {
@@ -98,6 +99,7 @@ export const tenantsApi = {
     stripe_webhook_secret?: string;
     smtp_password?: string;
   }>) => client.patch<TenantConfig>(`/api/v1/superadmin/tenants/${id}/config`, data),
+  testSMTP: (id: string) => client.post<{ verified_at: string }>(`/api/v1/superadmin/tenants/${id}/test-smtp`),
 };
 
 // ─── Usuarios ─────────────────────────────────────────────────────────────────
@@ -144,12 +146,14 @@ export interface SystemSMTP {
   smtp_user: string | null;
   smtp_password_set: boolean;
   smtp_from: string | null;
+  smtp_verified_at: string | null;
 }
 
 export const systemApi = {
   getSMTP: () => client.get<SystemSMTP>("/api/v1/superadmin/system-smtp"),
   updateSMTP: (data: Partial<SystemSMTP & { smtp_password?: string }>) =>
     client.patch<SystemSMTP>("/api/v1/superadmin/system-smtp", data),
+  testSMTP: () => client.post<{ verified_at: string }>("/api/v1/superadmin/system-smtp/test"),
 };
 
 // ─── Permisos por rol ─────────────────────────────────────────────────────────

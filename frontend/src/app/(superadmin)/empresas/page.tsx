@@ -432,9 +432,11 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
     max_reception_users: tenant.max_reception_users,
   });
   const [config, setConfig] = useState<ConfigFormData>(emptyConfig());
-  const [configMeta, setConfigMeta] = useState({ stripe_secret_key_set: false, stripe_webhook_secret_set: false, smtp_password_set: false });
+  const [configMeta, setConfigMeta] = useState({ stripe_secret_key_set: false, stripe_webhook_secret_set: false, smtp_password_set: false, smtp_verified_at: null as string | null });
   const [loadingConfig, setLoadingConfig] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [testingSmtp, setTestingSmtp] = useState(false);
+  const [smtpTestResult, setSmtpTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(
@@ -464,6 +466,7 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
           stripe_secret_key_set: d.stripe_secret_key_set,
           stripe_webhook_secret_set: d.stripe_webhook_secret_set,
           smtp_password_set: d.smtp_password_set,
+          smtp_verified_at: d.smtp_verified_at ?? null,
         });
       })
       .catch(() => {})
@@ -481,6 +484,18 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
     } catch {
       setError("Error al subir el logo.");
     } finally { setUploadingLogo(false); }
+  };
+
+  const handleTestSmtp = async () => {
+    setTestingSmtp(true); setSmtpTestResult(null);
+    try {
+      const res = await tenantsApi.testSMTP(tenant.id);
+      setSmtpTestResult({ ok: true, message: "Conexión verificada correctamente." });
+      setConfigMeta((p) => ({ ...p, smtp_verified_at: res.data.verified_at }));
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: { error?: { message?: string } } } } };
+      setSmtpTestResult({ ok: false, message: err.response?.data?.detail?.error?.message ?? "Error al conectar." });
+    } finally { setTestingSmtp(false); }
   };
 
   const handleSave = async () => {
@@ -516,6 +531,7 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
         tenantsApi.updateConfig(tenant.id, configPayload as Parameters<typeof tenantsApi.updateConfig>[1]),
       ]);
       onUpdated(tenantRes.data);
+      setSmtpTestResult(null);
       onOpenChange(false);
     } catch (e: unknown) {
       const err = e as { response?: { data?: { detail?: { error?: { message?: string } } } } };
@@ -693,17 +709,40 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
                     <div className="space-y-1.5">
                       <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Contraseña</Label>
                       <Input type="password" {...cfgField("smtp_password")} placeholder={configMeta.smtp_password_set ? "••••••••••••" : "Contraseña SMTP"} />
-                      {configMeta.smtp_password_set && (
-                        <p className="text-xs text-green-600 flex items-center gap-1">
-                          <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500" />
-                          Configurada — deja en blanco para mantener la actual
-                        </p>
-                      )}
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Email remitente (From)</Label>
                       <Input type="email" {...cfgField("smtp_from")} placeholder="noreply@empresa.com" />
                     </div>
+                  </div>
+
+                  {/* Estado de verificación + botón probar */}
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                    <div className="flex-1">
+                      {smtpTestResult ? (
+                        <p className={`text-sm flex items-center gap-1.5 ${smtpTestResult.ok ? "text-green-600" : "text-red-600"}`}>
+                          <span className={`inline-block h-2 w-2 rounded-full ${smtpTestResult.ok ? "bg-green-500" : "bg-red-500"}`} />
+                          {smtpTestResult.message}
+                        </p>
+                      ) : configMeta.smtp_verified_at ? (
+                        <p className="text-sm text-green-600 flex items-center gap-1.5">
+                          <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+                          Configuración probada y funcionando — {new Date(configMeta.smtp_verified_at).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" })}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-klyp-gray">Guarda los datos y pulsa &quot;Probar Conexión&quot;.</p>
+                      )}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={testingSmtp || !config.smtp_host}
+                      onClick={() => void handleTestSmtp()}
+                      className="shrink-0"
+                    >
+                      {testingSmtp ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                      {testingSmtp ? "Probando..." : "Probar Conexión"}
+                    </Button>
                   </div>
 
                   <div className="flex items-start gap-2.5 p-3 bg-klyp-pale rounded-lg border border-klyp-accent/20 text-xs text-klyp-gray">

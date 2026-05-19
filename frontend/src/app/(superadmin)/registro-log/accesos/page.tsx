@@ -18,8 +18,8 @@ import type { AccessLog } from "@/lib/api";
 const PAGE_SIZE = 50;
 
 const EVENT_LABELS: Record<string, string> = {
-  login_success: "Login exitoso",
-  login_failure: "Login fallido",
+  login_success: "Login Exitoso",
+  login_failure: "Login Fallido",
   logout: "Logout",
 };
 
@@ -118,8 +118,8 @@ export default function AccessLogsPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos los eventos</SelectItem>
-            <SelectItem value="login_success">Login exitoso</SelectItem>
-            <SelectItem value="login_failure">Login fallido</SelectItem>
+            <SelectItem value="login_success">Login Exitoso</SelectItem>
+            <SelectItem value="login_failure">Login Fallido</SelectItem>
           </SelectContent>
         </Select>
         <div className="flex gap-2 flex-1 sm:max-w-xs">

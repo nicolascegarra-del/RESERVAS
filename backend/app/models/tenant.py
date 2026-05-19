@@ -59,3 +59,6 @@ class Tenant(SQLModel, table=True):
     # Cifrada con app.core.crypto.encrypt_secret
     ses_password: str | None = Field(default=None, max_length=500)
     ses_enabled: bool = Field(default=False)
+
+    # ─── Verificación de conexión SMTP ───────────────────────────────────────
+    smtp_verified_at: datetime | None = Field(default=None, nullable=True)
