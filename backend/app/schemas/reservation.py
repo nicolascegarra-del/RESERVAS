@@ -7,6 +7,7 @@ cambio de estado y consulta de disponibilidad.
 
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field, model_validator
@@ -147,6 +148,23 @@ class ReservationStatusUpdate(BaseModel):
 
     status: ReservationStatus
     internal_notes: str | None = None
+
+
+# ─── Historial de auditoría ───────────────────────────────────────────────────
+
+
+class ReservationHistoryEntry(BaseModel):
+    """Entrada del historial de cambios de una reserva."""
+
+    id: UUID
+    user_name: str
+    user_role: str
+    action: str
+    description: str
+    changes: dict[str, Any] | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
 
 
 # ─── Paginación ───────────────────────────────────────────────────────────────

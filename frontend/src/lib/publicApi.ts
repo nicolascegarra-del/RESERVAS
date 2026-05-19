@@ -95,3 +95,98 @@ export const tenantsApi = {
   list: () =>
     publicClient.get<PublicTenantInfo[]>(`/api/v1/public/tenants`),
 };
+
+// ─── Carga pública de documentos de viajeros (token) ──────────────────────────
+
+export interface PublicGuestUploadInfo {
+  reservation_id: string;
+  guest_name: string;
+  accommodation_name: string;
+  check_in: string;
+  check_out: string;
+  num_persons: number;
+  brand_name: string;
+  primary_color: string | null;
+  accent_color: string | null;
+  logo_url: string | null;
+  registered_guests: number;
+  completed_guests: number;
+}
+
+export interface PublicGuest {
+  id: string;
+  reservation_id: string;
+  tenant_id: string;
+  is_main: boolean;
+  first_name: string | null;
+  last_name: string | null;
+  full_name: string | null;
+  doc_type: string | null;
+  doc_number: string | null;
+  nationality: string | null;
+  date_of_birth: string | null;
+  sex: string | null;
+  doc_expiry_date: string | null;
+  address: string | null;
+  id_front_url: string | null;
+  id_back_url: string | null;
+  ocr_status: "pending" | "processing" | "completed" | "failed" | "manual";
+  uploaded_by: string | null;
+  doc_status: "none" | "partial" | "complete";
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PublicGuestPayload {
+  is_main?: boolean;
+  first_name?: string | null;
+  last_name?: string | null;
+  full_name?: string | null;
+  doc_type?: string | null;
+  doc_number?: string | null;
+  nationality?: string | null;
+  date_of_birth?: string | null;
+  sex?: string | null;
+  doc_expiry_date?: string | null;
+  address?: string | null;
+  mark_manual?: boolean;
+}
+
+export const guestUploadApi = {
+  getInfo: (token: string) =>
+    publicClient.get<PublicGuestUploadInfo>(
+      `/api/v1/public/guest-upload/${token}`,
+    ),
+
+  listGuests: (token: string) =>
+    publicClient.get<PublicGuest[]>(
+      `/api/v1/public/guest-upload/${token}/guests`,
+    ),
+
+  createGuest: (token: string, data: PublicGuestPayload) =>
+    publicClient.post<PublicGuest>(
+      `/api/v1/public/guest-upload/${token}/guests`,
+      data,
+    ),
+
+  updateGuest: (token: string, guestId: string, data: PublicGuestPayload) =>
+    publicClient.patch<PublicGuest>(
+      `/api/v1/public/guest-upload/${token}/guests/${guestId}`,
+      data,
+    ),
+
+  uploadSide: (
+    token: string,
+    guestId: string,
+    side: "front" | "back",
+    file: File,
+  ) => {
+    const form = new FormData();
+    form.append("file", file);
+    return publicClient.post<PublicGuest>(
+      `/api/v1/public/guest-upload/${token}/guests/${guestId}/${side}`,
+      form,
+      { headers: { "Content-Type": "multipart/form-data" } },
+    );
+  },
+};

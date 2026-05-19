@@ -5,10 +5,16 @@ RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
 
 WORKDIR /app
 
-# Instalar dependencias del sistema necesarias para bcrypt y asyncpg
+# Instalar dependencias del sistema:
+#  - gcc, libpq-dev: necesarias para bcrypt y asyncpg
+#  - tesseract-ocr: motor OCR usado por passporteye para leer la MRZ
+#  - libgl1, libglib2.0-0: dependencias nativas de scikit-image / OpenCV
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     libpq-dev \
+    tesseract-ocr \
+    libgl1 \
+    libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copiar dependencias primero para aprovechar la caché de Docker
@@ -22,6 +28,9 @@ COPY alembic/ ./alembic/
 COPY alembic.ini .
 COPY entrypoint.sh .
 RUN chmod +x entrypoint.sh
+
+# Pre-crear directorios de media con permisos para appuser
+RUN mkdir -p /app/media/logos /app/media/guest_docs && chown -R appuser:appgroup /app/media
 
 # Cambiar al usuario no privilegiado
 USER appuser

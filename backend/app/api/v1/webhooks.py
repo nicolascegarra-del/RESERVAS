@@ -20,6 +20,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import settings
 from app.core.database import get_session
 from app.models.reservation import Reservation, ReservationStatus
+from app.models.system_settings import SystemSettings
 from app.models.tenant import Tenant
 from app.services.email_service import send_confirmation_email
 from app.services.stripe_service import verify_webhook_signature
@@ -111,9 +112,23 @@ async def stripe_webhook(
 
             # Enviar email de confirmación (sincrónico — si falla no afecta al webhook)
             try:
-                send_confirmation_email(reservation, tenant, settings.frontend_url)
+                system_smtp = await session.get(SystemSettings, 1)
+                send_confirmation_email(reservation, tenant, settings.frontend_url, system_smtp)
             except Exception as email_exc:
                 logger.error("Error enviando email de confirmación: %s", email_exc)
+
+            # Generar el token de carga de documentos y enviar su email.
+            try:
+                from app.services import guest_doc_service
+
+                token = await guest_doc_service.get_or_create_token(session, reservation)
+                await session.commit()
+                await session.refresh(token)
+                await guest_doc_service.send_docs_link_email(
+                    session, reservation, tenant, token.token
+                )
+            except Exception as docs_exc:  # noqa: BLE001
+                logger.error("Error enviando email de documentos: %s", docs_exc)
 
             logger.info("Reserva %s confirmada via Stripe webhook", reservation_id)
 

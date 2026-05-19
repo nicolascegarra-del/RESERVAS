@@ -57,7 +57,7 @@ export const ROLE_COLORS: Record<UserRole, string> = {
 
 // ─── Alojamientos ─────────────────────────────────────────────────────────────
 
-export type AccommodationCategory = "camping" | "apartment" | "cabin";
+export type AccommodationCategory = "parcela" | "apartamento" | "albergue";
 
 export type FieldType = "text" | "number" | "boolean" | "select";
 
@@ -113,15 +113,15 @@ export interface AccommodationTypeWithUnits extends AccommodationType {
 }
 
 export const CATEGORY_LABELS: Record<AccommodationCategory, string> = {
-  camping: "Camping",
-  apartment: "Apartamento",
-  cabin: "Cabaña",
+  parcela: "Parcela",
+  apartamento: "Apartamento",
+  albergue: "Albergue",
 };
 
 export const CATEGORY_COLORS: Record<AccommodationCategory, string> = {
-  camping: "bg-green-100 text-green-800",
-  apartment: "bg-blue-100 text-blue-800",
-  cabin: "bg-amber-100 text-amber-800",
+  parcela: "bg-green-100 text-green-800",
+  apartamento: "bg-blue-100 text-blue-800",
+  albergue: "bg-amber-100 text-amber-800",
 };
 
 export const FIELD_TYPE_LABELS: Record<FieldType, string> = {
@@ -314,6 +314,16 @@ export interface AvailabilityResult {
   price_preview: PriceCalculationResult | null;
 }
 
+export interface ReservationHistoryEntry {
+  id: string;
+  user_name: string;
+  user_role: string;
+  action: string;
+  description: string;
+  changes: Record<string, unknown> | null;
+  created_at: string;
+}
+
 export const RESERVATION_STATUS_LABELS: Record<ReservationStatus, string> = {
   pending_payment: "Pendiente de pago",
   confirmed: "Confirmada",
@@ -321,6 +331,130 @@ export const RESERVATION_STATUS_LABELS: Record<ReservationStatus, string> = {
   checked_out: "Check-out realizado",
   cancelled: "Cancelada",
   no_show: "No Show",
+};
+
+// ─── Documentos de viajeros ──────────────────────────────────────────────────
+
+export type DocStatus = "none" | "partial" | "complete";
+
+export type GuestDocType = "dni" | "passport" | "nie";
+
+export type GuestOcrStatus =
+  | "pending"
+  | "processing"
+  | "completed"
+  | "failed"
+  | "manual";
+
+export interface ReservationGuest {
+  id: string;
+  reservation_id: string;
+  tenant_id: string;
+  is_main: boolean;
+  first_name: string | null;
+  last_name: string | null;
+  full_name: string | null;
+  doc_type: string | null;
+  doc_number: string | null;
+  nationality: string | null;
+  date_of_birth: string | null; // "YYYY-MM-DD"
+  sex: string | null;
+  doc_expiry_date: string | null;
+  address: string | null;
+  id_front_url: string | null;
+  id_back_url: string | null;
+  ocr_status: GuestOcrStatus;
+  uploaded_by: string | null;
+  doc_status: DocStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SendDocsLinkResponse {
+  token: string;
+  upload_url: string;
+  email_status: "sent" | "failed" | "no_smtp" | "disabled";
+}
+
+export const DOC_STATUS_LABELS: Record<DocStatus, string> = {
+  none: "Sin documentos",
+  partial: "Parcial",
+  complete: "Completo",
+};
+
+export const DOC_STATUS_COLORS: Record<DocStatus, string> = {
+  none: "bg-red-100 text-red-800",
+  partial: "bg-yellow-100 text-yellow-800",
+  complete: "bg-green-100 text-green-800",
+};
+
+export const GUEST_DOC_TYPE_LABELS: Record<string, string> = {
+  dni: "DNI",
+  nie: "NIE",
+  passport: "Pasaporte",
+};
+
+// ─── Mail Notificaciones ─────────────────────────────────────────────────────
+
+export interface MailNotificationConfig {
+  notification_type: string;
+  label: string;
+  description: string;
+  recipient: string;
+  is_time_based: boolean;
+  enabled: boolean;
+  subject: string;
+  body_text: string;
+  days_before: number | null;
+}
+
+// ─── Mail Logs ────────────────────────────────────────────────────────────────
+
+export type MailLogStatus = "sent" | "failed" | "no_smtp";
+export type MailLogSmtpSource = "tenant" | "system" | "none";
+export type MailLogEmailType = "confirmation" | "reminder";
+
+export interface MailLog {
+  id: string;
+  tenant_id: string;
+  reservation_id: string | null;
+  to_email: string;
+  subject: string;
+  email_type: MailLogEmailType;
+  status: MailLogStatus;
+  smtp_source: MailLogSmtpSource;
+  error_message: string | null;
+  sent_at: string;
+}
+
+export interface PaginatedMailLogs {
+  items: MailLog[];
+  total: number;
+  page: number;
+  pages: number;
+}
+
+export const MAIL_LOG_STATUS_LABELS: Record<MailLogStatus, string> = {
+  sent: "Enviado",
+  failed: "Error",
+  no_smtp: "Sin SMTP",
+};
+
+export const MAIL_LOG_STATUS_COLORS: Record<MailLogStatus, string> = {
+  sent: "bg-green-100 text-green-800",
+  failed: "bg-red-100 text-red-800",
+  no_smtp: "bg-gray-100 text-gray-600",
+};
+
+export const MAIL_LOG_EMAIL_TYPE_LABELS: Record<MailLogEmailType, string> = {
+  confirmation: "Confirmación",
+  reminder: "Recordatorio",
+};
+
+export const MAIL_LOG_SMTP_SOURCE_LABELS: Record<MailLogSmtpSource, string> = {
+  tenant: "SMTP Empresa",
+  system: "SMTP Sistema",
+  none: "—",
 };
 
 export const RESERVATION_STATUS_COLORS: Record<ReservationStatus, string> = {
@@ -331,3 +465,21 @@ export const RESERVATION_STATUS_COLORS: Record<ReservationStatus, string> = {
   cancelled: "bg-red-100 text-red-800",
   no_show: "bg-orange-100 text-orange-800",
 };
+
+// ─── Control de acceso ────────────────────────────────────────────────────────
+
+export interface ReservationVehicle {
+  id: string;
+  reservation_id: string;
+  plate: string;
+  created_at: string;
+}
+
+export interface ReservationAccessCode {
+  id: string;
+  reservation_id: string;
+  code: string;
+  person_index: number;
+  created_at: string;
+  updated_at: string;
+}

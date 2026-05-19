@@ -102,6 +102,38 @@ async def inactive_user(session: AsyncSession, test_tenant: Tenant) -> User:
 
 
 @pytest_asyncio.fixture
+async def test_reservation(session: AsyncSession, test_tenant: Tenant):
+    """Reserva confirmada de prueba para 2 viajeros."""
+    from datetime import date
+    from decimal import Decimal
+    from uuid import uuid4
+
+    from app.models.reservation import Reservation, ReservationStatus
+
+    reservation = Reservation(
+        tenant_id=test_tenant.id,
+        accommodation_type_id=uuid4(),
+        unit_id=uuid4(),
+        guest_name="Ana García",
+        guest_email="ana@example.com",
+        check_in=date(2026, 7, 1),
+        check_out=date(2026, 7, 5),
+        num_persons=2,
+        nights=4,
+        base_price=Decimal("400.00"),
+        extras_price=Decimal("0.00"),
+        total_price=Decimal("400.00"),
+        currency="EUR",
+        selected_extra_ids=[],
+        status=ReservationStatus.confirmed,
+    )
+    session.add(reservation)
+    await session.commit()
+    await session.refresh(reservation)
+    return reservation
+
+
+@pytest_asyncio.fixture
 async def super_admin_user(session: AsyncSession) -> User:
     """Super admin de prueba (sin tenant)."""
     user = User(

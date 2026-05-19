@@ -31,7 +31,7 @@ const createTypeSchema = z.object({
     .string()
     .min(1, "El nombre es obligatorio")
     .max(200, "Máximo 200 caracteres"),
-  type_category: z.enum(["camping", "apartment", "cabin"], {
+  type_category: z.enum(["parcela", "apartamento", "albergue"], {
     required_error: "Selecciona una categoría",
   }),
   description: z.string().max(1000, "Máximo 1000 caracteres").optional(),
@@ -139,9 +139,9 @@ export function CreateTypeDialog({
                 <SelectValue placeholder="Selecciona una categoría" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="camping">Camping</SelectItem>
-                <SelectItem value="apartment">Apartamento</SelectItem>
-                <SelectItem value="cabin">Cabaña</SelectItem>
+                <SelectItem value="parcela">Parcela</SelectItem>
+                <SelectItem value="apartamento">Apartamento</SelectItem>
+                <SelectItem value="albergue">Albergue</SelectItem>
               </SelectContent>
             </Select>
             {errors.type_category && (
@@ -182,7 +182,7 @@ export function CreateTypeDialog({
             </Button>
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Crear tipo
+              Crear Tipo
             </Button>
           </DialogFooter>
         </form>

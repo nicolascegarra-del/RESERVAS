@@ -57,7 +57,7 @@ export default function AlojamientosPage() {
             className="min-h-[44px] sm:self-start"
           >
             <Plus className="mr-2 h-4 w-4" />
-            Nuevo tipo
+            Nuevo Tipo
           </Button>
         )}
       </div>

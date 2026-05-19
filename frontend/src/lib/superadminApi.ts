@@ -1,15 +1,5 @@
-import axios from "axios";
-import { useAuthStore } from "@/stores/authStore";
-
-const API_URL = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:8000";
-
-const client = axios.create({ baseURL: API_URL });
-
-client.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().accessToken;
-  if (token) config.headers["Authorization"] = `Bearer ${token}`;
-  return config;
-});
+// Reutiliza apiClient que ya incluye withCredentials, refresh automático y manejo de 401.
+import { apiClient as client } from "@/lib/api";
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -130,6 +120,36 @@ export const adminUsersApi = {
   resetPassword: (id: string, newPassword: string) =>
     client.post(`/api/v1/superadmin/users/${id}/reset-password`, { new_password: newPassword }),
   deactivate: (id: string) => client.delete(`/api/v1/superadmin/users/${id}`),
+};
+
+// ─── Usuarios Super Admin ─────────────────────────────────────────────────────
+
+export const superAdminUsersApi = {
+  list: () => client.get<AdminUser[]>("/api/v1/superadmin/superadmin-users"),
+  create: (data: { email: string; full_name: string; password: string }) =>
+    client.post<AdminUser>("/api/v1/superadmin/superadmin-users", data),
+  update: (id: string, data: { full_name?: string; is_active?: boolean }) =>
+    client.patch<AdminUser>(`/api/v1/superadmin/superadmin-users/${id}`, data),
+  resetPassword: (id: string, newPassword: string) =>
+    client.post(`/api/v1/superadmin/superadmin-users/${id}/reset-password`, { new_password: newPassword }),
+  delete: (id: string) => client.delete(`/api/v1/superadmin/superadmin-users/${id}`),
+};
+
+// ─── SMTP global del sistema ─────────────────────────────────────────────────
+
+export interface SystemSMTP {
+  smtp_enabled: boolean;
+  smtp_host: string | null;
+  smtp_port: number;
+  smtp_user: string | null;
+  smtp_password_set: boolean;
+  smtp_from: string | null;
+}
+
+export const systemApi = {
+  getSMTP: () => client.get<SystemSMTP>("/api/v1/superadmin/system-smtp"),
+  updateSMTP: (data: Partial<SystemSMTP & { smtp_password?: string }>) =>
+    client.patch<SystemSMTP>("/api/v1/superadmin/system-smtp", data),
 };
 
 // ─── Permisos por rol ─────────────────────────────────────────────────────────

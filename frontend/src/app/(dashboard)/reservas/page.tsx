@@ -9,8 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ReservationTable } from "@/components/reservations/ReservationTable";
 import { OccupancyCalendar } from "@/components/reservations/OccupancyCalendar";
-import { reservationsApi } from "@/lib/api";
-import type { Reservation, ReservationStatus } from "@/types";
+import { reservationsApi, guestsApi } from "@/lib/api";
+import type { DocStatus, Reservation, ReservationStatus } from "@/types";
 import { RESERVATION_STATUS_LABELS } from "@/types";
 
 const PAGE_SIZE = 20;
@@ -32,6 +32,9 @@ export default function ReservasPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [docStatusMap, setDocStatusMap] = useState<Record<string, DocStatus>>(
+    {},
+  );
 
   const [filters, setFilters] = useState<Filters>({
     status: "",
@@ -57,6 +60,17 @@ export default function ReservasPage() {
         setTotal(response.data.total);
         setPages(response.data.pages);
         setCurrentPage(page);
+
+        // Cargar el estado de documentación en bloque (no bloquea la tabla)
+        const ids = response.data.items.map((r) => r.id);
+        if (ids.length > 0) {
+          guestsApi
+            .docsStatusBulk(ids)
+            .then((res) => setDocStatusMap(res.data))
+            .catch(() => setDocStatusMap({}));
+        } else {
+          setDocStatusMap({});
+        }
       } catch {
         setLoadError("No se pudieron cargar las reservas. Inténtalo de nuevo.");
       } finally {
@@ -101,7 +115,7 @@ export default function ReservasPage() {
         <Link href="/reservas/nueva">
           <Button className="bg-klyp-accent hover:bg-klyp-accent/90 text-white min-h-[44px]">
             <Plus className="mr-2 h-4 w-4" />
-            Nueva reserva
+            Nueva Reserva
           </Button>
         </Link>
       </div>
@@ -221,7 +235,10 @@ export default function ReservasPage() {
               ))}
             </div>
           ) : (
-            <ReservationTable reservations={reservations} />
+            <ReservationTable
+              reservations={reservations}
+              docStatusMap={docStatusMap}
+            />
           )}
 
           {!isLoading && pages > 1 && (
@@ -258,7 +275,7 @@ export default function ReservasPage() {
               <Link href="/reservas/nueva" className="mt-4">
                 <Button className="bg-klyp-accent hover:bg-klyp-accent/90 text-white">
                   <Plus className="mr-2 h-4 w-4" />
-                  Nueva reserva
+                  Nueva Reserva
                 </Button>
               </Link>
             </div>

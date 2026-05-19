@@ -79,7 +79,7 @@ export function PricingModelForm({
     });
   }, [pricingModel, reset]);
 
-  const isCamping = category === "camping";
+  const isCamping = category === "parcela";
 
   const onSubmit = async (values: PricingFormValues) => {
     try {
@@ -198,7 +198,7 @@ export function PricingModelForm({
         className="min-h-[44px]"
       >
         <Save className="mr-2 h-4 w-4" />
-        {isSubmitting ? "Guardando..." : "Guardar precios base"}
+        {isSubmitting ? "Guardando..." : "Guardar Precios Base"}
       </Button>
     </form>
   );

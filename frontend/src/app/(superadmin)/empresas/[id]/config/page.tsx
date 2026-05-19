@@ -196,7 +196,7 @@ export default function TenantConfigPage() {
       {error && <div className="rounded-md bg-red-50 border border-red-200 px-4 py-2 text-sm text-red-700">{error}</div>}
 
       <Button onClick={() => void handleSave()} disabled={saving} className="min-h-[44px]">
-        {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</> : <><Save className="mr-2 h-4 w-4" />Guardar configuración</>}
+        {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</> : <><Save className="mr-2 h-4 w-4" />Guardar Configuración</>}
       </Button>
     </div>
   );

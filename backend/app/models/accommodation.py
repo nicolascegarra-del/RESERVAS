@@ -5,7 +5,7 @@ Cubre AccommodationType (tipos), AccommodationUnit (unidades),
 FieldDefinition (campos personalizados por tipo) y Extra (servicios adicionales).
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 from uuid import UUID, uuid4
 
@@ -18,9 +18,9 @@ from sqlmodel import Field, SQLModel
 class AccommodationCategory(str, Enum):
     """Categoría funcional del tipo de alojamiento."""
 
-    camping = "camping"
-    apartment = "apartment"
-    cabin = "cabin"
+    parcela = "parcela"
+    apartamento = "apartamento"
+    albergue = "albergue"
 
 
 class FieldType(str, Enum):
@@ -52,7 +52,7 @@ class AccommodationType(SQLModel, table=True):
     )
     description: str | None = Field(default=None, max_length=1000)
     is_active: bool = Field(default=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class AccommodationUnit(SQLModel, table=True):
@@ -76,7 +76,7 @@ class AccommodationUnit(SQLModel, table=True):
     is_active: bool = Field(default=True)
     # JSONB: almacena valores de campos personalizados definidos por el tenant
     custom_fields: dict = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class FieldDefinition(SQLModel, table=True):
@@ -109,7 +109,7 @@ class FieldDefinition(SQLModel, table=True):
     is_required: bool = Field(default=False)
     # Orden de presentación en formularios
     sort_order: int = Field(default=0)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class Extra(SQLModel, table=True):
@@ -127,4 +127,4 @@ class Extra(SQLModel, table=True):
     name: str = Field(max_length=200)
     description: str | None = Field(default=None, max_length=500)
     is_active: bool = Field(default=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

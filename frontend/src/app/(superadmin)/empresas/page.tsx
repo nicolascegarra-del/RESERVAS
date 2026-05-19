@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import {
   Plus, Pencil, Trash2, Users, Building2, Loader2,
   PauseCircle, PlayCircle, ChevronUp, ChevronDown, SlidersHorizontal,
-  Upload, AlertTriangle,
+  Upload, AlertTriangle, CreditCard, Mail, Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,7 +18,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { tenantsApi, type TenantSummary, type TenantCreatePayload } from "@/lib/superadminApi";
-import { useRouter } from "next/navigation";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TenantUsersDialog } from "./TenantUsersDialog";
 
 const API_URL = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:8000";
 
@@ -52,12 +53,12 @@ function TenantFormFields({ form, setForm }: {
     <div className="space-y-5">
       <div>
         <p className="text-xs font-semibold text-klyp-gray uppercase tracking-wide mb-3">Datos básicos</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5 col-span-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1.5 col-span-full">
             <Label>Nombre comercial *</Label>
             <Input {...field("name")} />
           </div>
-          <div className="space-y-1.5 col-span-2">
+          <div className="space-y-1.5 col-span-full">
             <Label>Slug (URL único) *</Label>
             <Input {...field("slug")} placeholder="mi-empresa" />
           </div>
@@ -65,8 +66,8 @@ function TenantFormFields({ form, setForm }: {
       </div>
       <div>
         <p className="text-xs font-semibold text-klyp-gray uppercase tracking-wide mb-3">Datos fiscales</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5 col-span-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1.5 col-span-full">
             <Label>Razón social</Label>
             <Input {...field("legal_name")} />
           </div>
@@ -78,7 +79,7 @@ function TenantFormFields({ form, setForm }: {
             <Label>Cuenta bancaria</Label>
             <Input {...field("bank_account")} placeholder="ES00 0000..." />
           </div>
-          <div className="space-y-1.5 col-span-2">
+          <div className="space-y-1.5 col-span-full">
             <Label>Domicilio fiscal</Label>
             <Input {...field("address")} />
           </div>
@@ -98,8 +99,8 @@ function TenantFormFields({ form, setForm }: {
       </div>
       <div>
         <p className="text-xs font-semibold text-klyp-gray uppercase tracking-wide mb-3">Contacto</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5 col-span-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1.5 col-span-full">
             <Label>Email de contacto</Label>
             <Input type="email" {...field("contact_email")} />
           </div>
@@ -165,14 +166,14 @@ function CreateTenantDialog({ open, onOpenChange, onCreated }: {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-full max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Nueva Empresa</DialogTitle></DialogHeader>
         <div className="py-2"><TenantFormFields form={form} setForm={setForm} /></div>
         {error && <p className="text-sm text-red-600">{error}</p>}
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancelar</Button>
           <Button onClick={() => void handleCreate()} disabled={saving} className="bg-klyp-accent hover:bg-klyp-accent/90 text-white">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Crear empresa"}
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Crear Empresa"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -181,6 +182,37 @@ function CreateTenantDialog({ open, onOpenChange, onCreated }: {
 }
 
 // ─── Dialogo Editar ───────────────────────────────────────────────────────────
+
+type ConfigFormData = {
+  stripe_enabled: boolean;
+  stripe_secret_key: string;
+  stripe_webhook_secret: string;
+  stripe_currency: string;
+  smtp_enabled: boolean;
+  smtp_host: string;
+  smtp_port: number;
+  smtp_user: string;
+  smtp_password: string;
+  smtp_from: string;
+};
+type ConfigStringKey = Exclude<keyof ConfigFormData, "stripe_enabled" | "smtp_enabled">;
+
+const emptyConfig = (): ConfigFormData => ({
+  stripe_enabled: false, stripe_secret_key: "", stripe_webhook_secret: "", stripe_currency: "EUR",
+  smtp_enabled: false, smtp_host: "", smtp_port: 587, smtp_user: "", smtp_password: "", smtp_from: "",
+});
+
+function ToggleSwitch({ enabled, onChange }: { enabled: boolean; onChange: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onChange}
+      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${enabled ? "bg-klyp-accent" : "bg-gray-300"}`}
+    >
+      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${enabled ? "translate-x-6" : "translate-x-1"}`} />
+    </button>
+  );
+}
 
 function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
   tenant: TenantSummary;
@@ -203,6 +235,9 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
     max_company_admins: tenant.max_company_admins,
     max_reception_users: tenant.max_reception_users,
   });
+  const [config, setConfig] = useState<ConfigFormData>(emptyConfig());
+  const [configMeta, setConfigMeta] = useState({ stripe_secret_key_set: false, stripe_webhook_secret_set: false, smtp_password_set: false });
+  const [loadingConfig, setLoadingConfig] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -210,6 +245,34 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
     tenant.logo_url ? `${API_URL}${tenant.logo_url}` : null
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setLoadingConfig(true);
+    tenantsApi.getConfig(tenant.id)
+      .then((res) => {
+        const d = res.data;
+        setConfig({
+          stripe_enabled: d.stripe_enabled,
+          stripe_secret_key: "",
+          stripe_webhook_secret: "",
+          stripe_currency: d.stripe_currency,
+          smtp_enabled: d.smtp_enabled,
+          smtp_host: d.smtp_host ?? "",
+          smtp_port: d.smtp_port,
+          smtp_user: d.smtp_user ?? "",
+          smtp_password: "",
+          smtp_from: d.smtp_from ?? "",
+        });
+        setConfigMeta({
+          stripe_secret_key_set: d.stripe_secret_key_set,
+          stripe_webhook_secret_set: d.stripe_webhook_secret_set,
+          smtp_password_set: d.smtp_password_set,
+        });
+      })
+      .catch(() => {})
+      .finally(() => setLoadingConfig(false));
+  }, [open, tenant.id]);
 
   const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -228,19 +291,35 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
     if (!form.name || !form.slug) { setError("Nombre y slug son obligatorios."); return; }
     setSaving(true); setError(null);
     try {
-      const res = await tenantsApi.update(tenant.id, {
-        ...form,
-        legal_name: form.legal_name || null,
-        cif: form.cif || null,
-        address: form.address || null,
-        postal_code: form.postal_code || null,
-        municipality: form.municipality || null,
-        province: form.province || null,
-        contact_email: form.contact_email || null,
-        contact_phone: form.contact_phone || null,
-        bank_account: form.bank_account || null,
-      });
-      onUpdated(res.data);
+      const configPayload: Record<string, unknown> = {
+        stripe_enabled: config.stripe_enabled,
+        stripe_currency: config.stripe_currency,
+        smtp_enabled: config.smtp_enabled,
+        smtp_host: config.smtp_host || null,
+        smtp_port: config.smtp_port,
+        smtp_user: config.smtp_user || null,
+        smtp_from: config.smtp_from || null,
+      };
+      if (config.stripe_secret_key) configPayload["stripe_secret_key"] = config.stripe_secret_key;
+      if (config.stripe_webhook_secret) configPayload["stripe_webhook_secret"] = config.stripe_webhook_secret;
+      if (config.smtp_password) configPayload["smtp_password"] = config.smtp_password;
+
+      const [tenantRes] = await Promise.all([
+        tenantsApi.update(tenant.id, {
+          ...form,
+          legal_name: form.legal_name || null,
+          cif: form.cif || null,
+          address: form.address || null,
+          postal_code: form.postal_code || null,
+          municipality: form.municipality || null,
+          province: form.province || null,
+          contact_email: form.contact_email || null,
+          contact_phone: form.contact_phone || null,
+          bank_account: form.bank_account || null,
+        }),
+        tenantsApi.updateConfig(tenant.id, configPayload as Parameters<typeof tenantsApi.updateConfig>[1]),
+      ]);
+      onUpdated(tenantRes.data);
       onOpenChange(false);
     } catch (e: unknown) {
       const err = e as { response?: { data?: { detail?: { error?: { message?: string } } } } };
@@ -248,44 +327,208 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
     } finally { setSaving(false); }
   };
 
+  const cfgField = (key: ConfigStringKey) => ({
+    value: String(config[key]),
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
+      setConfig((p) => ({ ...p, [key]: key === "smtp_port" ? Number(e.target.value) : e.target.value })),
+  });
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>Editar Empresa</DialogTitle></DialogHeader>
-        <div className="py-2 space-y-5">
-          <div>
-            <p className="text-xs font-semibold text-klyp-gray uppercase tracking-wide mb-3">Logotipo</p>
-            <div className="flex items-center gap-4">
-              <div className="h-16 w-16 rounded-lg border-2 border-dashed border-gray-200 flex items-center justify-center bg-gray-50 overflow-hidden">
-                {logoPreview
-                  ? <img src={logoPreview} alt="Logo" className="h-full w-full object-contain" />
-                  : <Building2 className="h-6 w-6 text-gray-300" />}
-              </div>
-              <div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                  className="hidden"
-                  onChange={(e) => void handleLogoChange(e)}
-                />
-                <Button variant="outline" size="sm" disabled={uploadingLogo} onClick={() => fileInputRef.current?.click()}>
-                  {uploadingLogo ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
-                  {uploadingLogo ? "Subiendo..." : "Subir logo"}
-                </Button>
-                <p className="text-xs text-klyp-gray mt-1">PNG, JPEG, WebP o SVG</p>
-              </div>
+      <DialogContent className="w-full max-w-[95vw] sm:max-w-3xl max-h-[90vh] overflow-y-auto p-0">
+        {/* ── Cabecera visual ── */}
+        <div className="bg-klyp-navy px-6 py-5 rounded-t-lg">
+          <div className="flex items-center gap-4">
+            <div className="h-14 w-14 rounded-xl border-2 border-white/20 bg-white/10 flex items-center justify-center overflow-hidden shrink-0">
+              {!logoPreview && <Building2 className="h-7 w-7 text-white/60" />}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {logoPreview && <img src={logoPreview} alt="Logo" className="h-full w-full object-contain" />}
             </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-white font-bold text-lg leading-tight truncate">{tenant.name}</h2>
+              <p className="text-white/50 text-xs mt-0.5 truncate">{tenant.slug}</p>
+            </div>
+            <span className={`shrink-0 text-xs px-2.5 py-1 rounded-full font-medium ${
+              tenant.is_active ? "bg-green-400/20 text-green-300 border border-green-400/30" : "bg-red-400/20 text-red-300 border border-red-400/30"
+            }`}>
+              {tenant.is_active ? "Activa" : "Suspendida"}
+            </span>
           </div>
-          <TenantFormFields form={form} setForm={setForm} />
         </div>
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancelar</Button>
-          <Button onClick={() => void handleSave()} disabled={saving} className="bg-klyp-accent hover:bg-klyp-accent/90 text-white">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar cambios"}
-          </Button>
-        </DialogFooter>
+
+        <div className="px-6 pb-6 pt-4">
+          <Tabs defaultValue="general" className="w-full">
+            <TabsList className="w-full mb-4 grid grid-cols-3 h-auto p-1">
+              <TabsTrigger value="general" className="flex items-center gap-1.5 py-2 text-xs sm:text-sm">
+                <Building2 className="h-3.5 w-3.5 shrink-0" />
+                <span>General</span>
+              </TabsTrigger>
+              <TabsTrigger value="stripe" className="flex items-center gap-1.5 py-2 text-xs sm:text-sm">
+                <CreditCard className="h-3.5 w-3.5 shrink-0" />
+                <span>Stripe</span>
+                {config.stripe_enabled && <span className="hidden sm:inline-block h-1.5 w-1.5 rounded-full bg-purple-500 ml-0.5" />}
+              </TabsTrigger>
+              <TabsTrigger value="smtp" className="flex items-center gap-1.5 py-2 text-xs sm:text-sm">
+                <Mail className="h-3.5 w-3.5 shrink-0" />
+                <span>SMTP</span>
+                {config.smtp_enabled && <span className="hidden sm:inline-block h-1.5 w-1.5 rounded-full bg-blue-500 ml-0.5" />}
+              </TabsTrigger>
+            </TabsList>
+
+            {/* ── General ── */}
+            <TabsContent value="general" className="space-y-5 mt-0">
+              {/* Logo upload */}
+              <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                <div className="h-16 w-16 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center bg-white overflow-hidden shrink-0">
+                  {!logoPreview && <Building2 className="h-6 w-6 text-gray-300" />}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {logoPreview && <img src={logoPreview} alt="Logo" className="h-full w-full object-contain" />}
+                </div>
+                <div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    className="hidden"
+                    onChange={(e) => void handleLogoChange(e)}
+                  />
+                  <Button variant="outline" size="sm" disabled={uploadingLogo} onClick={() => fileInputRef.current?.click()}>
+                    {uploadingLogo ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+                    {uploadingLogo ? "Subiendo..." : "Cambiar Logo"}
+                  </Button>
+                  <p className="text-xs text-klyp-gray mt-1">PNG, JPEG, WebP o SVG</p>
+                </div>
+              </div>
+
+              <TenantFormFields form={form} setForm={setForm} />
+            </TabsContent>
+
+            {/* ── Stripe ── */}
+            <TabsContent value="stripe" className="space-y-4 mt-0">
+              {loadingConfig ? (
+                <div className="space-y-2">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-10 w-full rounded-md" />)}</div>
+              ) : (
+                <>
+                  {/* Status toggle */}
+                  <div className="flex items-center justify-between p-4 rounded-xl border-2 transition-colors" style={{
+                    borderColor: config.stripe_enabled ? "rgb(147 51 234 / 0.3)" : "rgb(229 231 235)",
+                    backgroundColor: config.stripe_enabled ? "rgb(250 245 255)" : "rgb(249 250 251)",
+                  }}>
+                    <div className="flex items-center gap-3">
+                      <div className={`h-9 w-9 rounded-lg flex items-center justify-center ${config.stripe_enabled ? "bg-purple-100" : "bg-gray-100"}`}>
+                        <CreditCard className={`h-5 w-5 ${config.stripe_enabled ? "text-purple-600" : "text-gray-400"}`} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-klyp-navy">TPV virtual (Stripe)</p>
+                        <p className="text-xs text-klyp-gray">Pagos online con tarjeta</p>
+                      </div>
+                    </div>
+                    <ToggleSwitch enabled={config.stripe_enabled} onChange={() => setConfig((p) => ({ ...p, stripe_enabled: !p.stripe_enabled }))} />
+                  </div>
+
+                  <div className="space-y-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Clave secreta (Secret Key)</Label>
+                      <Input type="password" {...cfgField("stripe_secret_key")} placeholder={configMeta.stripe_secret_key_set ? "sk_••••••••••••••••••••" : "sk_live_..."} />
+                      {configMeta.stripe_secret_key_set && (
+                        <p className="text-xs text-green-600 flex items-center gap-1">
+                          <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500" />
+                          Configurada — deja en blanco para mantener la actual
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Webhook Secret</Label>
+                      <Input type="password" {...cfgField("stripe_webhook_secret")} placeholder={configMeta.stripe_webhook_secret_set ? "whsec_••••••••••••••••••" : "whsec_..."} />
+                      {configMeta.stripe_webhook_secret_set && (
+                        <p className="text-xs text-green-600 flex items-center gap-1">
+                          <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500" />
+                          Configurado — deja en blanco para mantener el actual
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Moneda</Label>
+                      <Input {...cfgField("stripe_currency")} placeholder="EUR" maxLength={3} className="uppercase w-24" />
+                    </div>
+                  </div>
+                </>
+              )}
+            </TabsContent>
+
+            {/* ── SMTP ── */}
+            <TabsContent value="smtp" className="space-y-4 mt-0">
+              {loadingConfig ? (
+                <div className="space-y-2">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-10 w-full rounded-md" />)}</div>
+              ) : (
+                <>
+                  {/* Status toggle */}
+                  <div className="flex items-center justify-between p-4 rounded-xl border-2 transition-colors" style={{
+                    borderColor: config.smtp_enabled ? "rgb(59 130 246 / 0.3)" : "rgb(229 231 235)",
+                    backgroundColor: config.smtp_enabled ? "rgb(239 246 255)" : "rgb(249 250 251)",
+                  }}>
+                    <div className="flex items-center gap-3">
+                      <div className={`h-9 w-9 rounded-lg flex items-center justify-center ${config.smtp_enabled ? "bg-blue-100" : "bg-gray-100"}`}>
+                        <Mail className={`h-5 w-5 ${config.smtp_enabled ? "text-blue-600" : "text-gray-400"}`} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-klyp-navy">Correo SMTP propio</p>
+                        <p className="text-xs text-klyp-gray">Emails transaccionales de esta empresa</p>
+                      </div>
+                    </div>
+                    <ToggleSwitch enabled={config.smtp_enabled} onChange={() => setConfig((p) => ({ ...p, smtp_enabled: !p.smtp_enabled }))} />
+                  </div>
+
+                  <div className="space-y-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="space-y-1.5 sm:col-span-2">
+                        <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Servidor (Host)</Label>
+                        <Input {...cfgField("smtp_host")} placeholder="smtp.gmail.com" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Puerto</Label>
+                        <Input type="number" {...cfgField("smtp_port")} />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Usuario</Label>
+                      <Input {...cfgField("smtp_user")} placeholder="noreply@empresa.com" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Contraseña</Label>
+                      <Input type="password" {...cfgField("smtp_password")} placeholder={configMeta.smtp_password_set ? "••••••••••••" : "Contraseña SMTP"} />
+                      {configMeta.smtp_password_set && (
+                        <p className="text-xs text-green-600 flex items-center gap-1">
+                          <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500" />
+                          Configurada — deja en blanco para mantener la actual
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Email remitente (From)</Label>
+                      <Input type="email" {...cfgField("smtp_from")} placeholder="noreply@empresa.com" />
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2.5 p-3 bg-klyp-pale rounded-lg border border-klyp-accent/20 text-xs text-klyp-gray">
+                    <Info className="h-3.5 w-3.5 text-klyp-accent shrink-0 mt-0.5" />
+                    <span>Si no hay SMTP propio configurado, se usará el <strong className="text-klyp-navy">SMTP global</strong> del sistema como fallback.</span>
+                  </div>
+                </>
+              )}
+            </TabsContent>
+          </Tabs>
+
+          {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
+
+          <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-gray-100">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancelar</Button>
+            <Button onClick={() => void handleSave()} disabled={saving} className="bg-klyp-accent hover:bg-klyp-accent/90 text-white">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              {saving ? "Guardando..." : "Guardar Cambios"}
+            </Button>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -345,7 +588,7 @@ function DeleteTenantDialog({ tenant, open, onOpenChange, onDeleted }: {
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancelar</Button>
           <Button onClick={() => void handleDelete()} disabled={saving} className="bg-red-600 hover:bg-red-700 text-white">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Eliminar definitivamente"}
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Eliminar Definitivamente"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -373,12 +616,12 @@ const ALL_COLS: { key: ColKey; label: string }[] = [
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 export default function EmpresasPage() {
-  const router = useRouter();
   const [tenants, setTenants] = useState<TenantSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [editTenant, setEditTenant] = useState<TenantSummary | null>(null);
   const [deleteTenant, setDeleteTenant] = useState<TenantSummary | null>(null);
+  const [usersTenant, setUsersTenant] = useState<TenantSummary | null>(null);
   const [suspending, setSuspending] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
@@ -451,13 +694,15 @@ export default function EmpresasPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-klyp-navy">Empresas</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-klyp-navy">Empresas</h1>
           <p className="text-sm text-klyp-gray mt-0.5">Gestión de todos los clientes del sistema.</p>
         </div>
-        <Button onClick={() => setShowCreate(true)} className="bg-klyp-accent hover:bg-klyp-accent/90 text-white min-h-[44px]">
-          <Plus className="mr-2 h-4 w-4" />Nueva Empresa
+        <Button onClick={() => setShowCreate(true)} className="bg-klyp-accent hover:bg-klyp-accent/90 text-white min-h-[44px] shrink-0">
+          <Plus className="mr-1 sm:mr-2 h-4 w-4" />
+          <span className="hidden sm:inline">Nueva Empresa</span>
+          <span className="sm:hidden">Nueva</span>
         </Button>
       </div>
 
@@ -467,7 +712,7 @@ export default function EmpresasPage() {
           placeholder="Buscar por nombre, CIF o municipio..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="h-[44px] max-w-xs"
+          className="h-[44px] w-full sm:max-w-xs"
         />
         <select
           value={filterState}
@@ -491,7 +736,7 @@ export default function EmpresasPage() {
                     checked={visibleCols.has(c.key)}
                     onChange={() => setVisibleCols((prev) => {
                       const next = new Set(prev);
-                      next.has(c.key) ? next.delete(c.key) : next.add(c.key);
+                      if (next.has(c.key)) { next.delete(c.key); } else { next.add(c.key); }
                       return next;
                     })}
                     className="rounded"
@@ -546,9 +791,9 @@ export default function EmpresasPage() {
                   {col("logo") && (
                     <td className="px-4 py-3">
                       <div className="h-9 w-9 rounded-md border border-gray-100 bg-gray-50 flex items-center justify-center overflow-hidden">
-                        {t.logo_url
-                          ? <img src={`${API_URL}${t.logo_url}`} alt={t.name} className="h-full w-full object-contain" />
-                          : <Building2 className="h-4 w-4 text-gray-300" />}
+                        {!t.logo_url && <Building2 className="h-4 w-4 text-gray-300" />}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        {t.logo_url && <img src={`${API_URL}${t.logo_url}`} alt={t.name} className="h-full w-full object-contain" />}
                       </div>
                     </td>
                   )}
@@ -588,7 +833,7 @@ export default function EmpresasPage() {
                   )}
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Ver usuarios" onClick={() => router.push(`/usuarios?tenant_id=${t.id}`)}>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Gestionar usuarios" onClick={() => setUsersTenant(t)}>
                         <Users className="h-4 w-4 text-klyp-gray" />
                       </Button>
                       <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Editar empresa" onClick={() => setEditTenant(t)}>
@@ -646,6 +891,13 @@ export default function EmpresasPage() {
             setTenants((prev) => prev.filter((x) => x.id !== deleteTenant.id));
             setDeleteTenant(null);
           }}
+        />
+      )}
+      {usersTenant && (
+        <TenantUsersDialog
+          tenant={usersTenant}
+          open={true}
+          onOpenChange={(v) => { if (!v) setUsersTenant(null); }}
         />
       )}
     </div>

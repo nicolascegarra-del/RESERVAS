@@ -121,6 +121,7 @@ export const authApi = {
 // ─── Alojamientos ─────────────────────────────────────────────────────────────
 
 import type {
+  MailNotificationConfig,
   AccommodationType,
   AccommodationTypeWithUnits,
   AccommodationUnit,
@@ -132,11 +133,13 @@ import type {
   ExtraPrice,
   PriceCalculationResult,
   Reservation,
+  ReservationHistoryEntry,
   AvailabilityResult,
   CancellationPolicy,
   RefundPreview,
   RefundOrder,
   PaginatedRefundOrders,
+  PaginatedMailLogs,
 } from "@/types";
 
 interface AccommodationTypeCreate {
@@ -517,6 +520,135 @@ export const reservationsApi = {
       occupancy_pct_today: number;
       occupied_units_today: number;
     }>("/api/v1/reservations/stats"),
+
+  getHistory: (id: string) =>
+    apiClient.get<ReservationHistoryEntry[]>(`/api/v1/reservations/${id}/history`),
+
+  // Matrículas
+  listVehicles: (id: string) =>
+    apiClient.get<import("@/types").ReservationVehicle[]>(`/api/v1/reservations/${id}/vehicles`),
+  addVehicle: (id: string, plate: string) =>
+    apiClient.post<import("@/types").ReservationVehicle>(`/api/v1/reservations/${id}/vehicles`, { plate }),
+  deleteVehicle: (id: string, vehicleId: string) =>
+    apiClient.delete(`/api/v1/reservations/${id}/vehicles/${vehicleId}`),
+
+  // Códigos de torno
+  listAccessCodes: (id: string) =>
+    apiClient.get<import("@/types").ReservationAccessCode[]>(`/api/v1/reservations/${id}/access-codes`),
+  generateAccessCodes: (id: string) =>
+    apiClient.post<import("@/types").ReservationAccessCode[]>(`/api/v1/reservations/${id}/access-codes/generate`),
+  regenerateAccessCode: (id: string, codeId: string) =>
+    apiClient.post<import("@/types").ReservationAccessCode>(`/api/v1/reservations/${id}/access-codes/${codeId}/regenerate`),
+};
+
+// ─── Documentos de viajeros ──────────────────────────────────────────────────
+
+import type { ReservationGuest, SendDocsLinkResponse } from "@/types";
+
+interface GuestCreate {
+  is_main?: boolean;
+  first_name?: string | null;
+  last_name?: string | null;
+  full_name?: string | null;
+  doc_type?: string | null;
+  doc_number?: string | null;
+  nationality?: string | null;
+  date_of_birth?: string | null;
+  sex?: string | null;
+  doc_expiry_date?: string | null;
+  address?: string | null;
+}
+
+interface GuestUpdate {
+  first_name?: string | null;
+  last_name?: string | null;
+  full_name?: string | null;
+  doc_type?: string | null;
+  doc_number?: string | null;
+  nationality?: string | null;
+  date_of_birth?: string | null;
+  sex?: string | null;
+  doc_expiry_date?: string | null;
+  address?: string | null;
+  mark_manual?: boolean;
+}
+
+export interface DocsAlertItem {
+  reservation_id: string;
+  guest_name: string;
+  check_in: string;
+  num_persons: number;
+  registered_guests: number;
+  completed_guests: number;
+  status: "none" | "partial" | "complete";
+}
+
+export const guestsApi = {
+  docsAlerts: (daysAhead = 1) =>
+    apiClient.get<DocsAlertItem[]>("/api/v1/reservations/docs-alerts", {
+      params: { days_ahead: daysAhead },
+    }),
+
+  docsStatusBulk: (reservationIds: string[]) =>
+    apiClient.post<Record<string, "none" | "partial" | "complete">>(
+      "/api/v1/reservations/docs-status",
+      { reservation_ids: reservationIds },
+    ),
+
+  list: (reservationId: string) =>
+    apiClient.get<ReservationGuest[]>(
+      `/api/v1/reservations/${reservationId}/guests`,
+    ),
+
+  create: (reservationId: string, data: GuestCreate) =>
+    apiClient.post<ReservationGuest>(
+      `/api/v1/reservations/${reservationId}/guests`,
+      data,
+    ),
+
+  update: (reservationId: string, guestId: string, data: GuestUpdate) =>
+    apiClient.patch<ReservationGuest>(
+      `/api/v1/reservations/${reservationId}/guests/${guestId}`,
+      data,
+    ),
+
+  remove: (reservationId: string, guestId: string) =>
+    apiClient.delete(
+      `/api/v1/reservations/${reservationId}/guests/${guestId}`,
+    ),
+
+  scan: (
+    reservationId: string,
+    guestId: string,
+    side: "front" | "back",
+    file: File,
+  ) => {
+    const form = new FormData();
+    form.append("file", file);
+    return apiClient.post<ReservationGuest>(
+      `/api/v1/reservations/${reservationId}/guests/${guestId}/scan`,
+      form,
+      {
+        params: { side },
+        headers: { "Content-Type": "multipart/form-data" },
+      },
+    );
+  },
+
+  sendDocsLink: (reservationId: string) =>
+    apiClient.post<SendDocsLinkResponse>(
+      `/api/v1/reservations/${reservationId}/send-docs-link`,
+    ),
+
+  /** URL absoluta para descargar el XML SES (incluye token vía header). */
+  sesExportUrl: (reservationId: string) =>
+    `/api/v1/reservations/${reservationId}/guests/ses-export`,
+
+  sesExport: (reservationId: string) =>
+    apiClient.get(
+      `/api/v1/reservations/${reservationId}/guests/ses-export`,
+      { responseType: "blob" },
+    ),
 };
 
 // ─── Cancelaciones (Sprint 5) ─────────────────────────────────────────────────
@@ -582,6 +714,18 @@ export const settingsApi = {
 
   updateBranding: (data: Partial<TenantBranding>) =>
     apiClient.patch<TenantBranding>("/api/v1/settings/branding", data),
+
+  getMailNotifications: () =>
+    apiClient.get<MailNotificationConfig[]>("/api/v1/settings/mail-notifications"),
+
+  updateMailNotification: (
+    notificationType: string,
+    data: { enabled: boolean; subject: string; body_text: string; days_before?: number | null }
+  ) =>
+    apiClient.put<MailNotificationConfig>(
+      `/api/v1/settings/mail-notifications/${notificationType}`,
+      data
+    ),
 };
 
 // ─── Admin (super_admin only) ─────────────────────────────────────────────────
@@ -616,6 +760,88 @@ export interface ChangeRequest {
   reviewed_at: string | null;
   created_at: string;
 }
+
+// ─── Access Logs ─────────────────────────────────────────────────────────────
+
+export interface AccessLog {
+  id: string;
+  user_id: string | null;
+  user_email: string;
+  user_role: string | null;
+  tenant_id: string | null;
+  ip_address: string | null;
+  event_type: string;
+  detail: string | null;
+  accessed_at: string;
+}
+
+export interface PaginatedAccessLogs {
+  items: AccessLog[];
+  total: number;
+  page: number;
+  pages: number;
+}
+
+interface AccessLogParams {
+  event_type?: string;
+  user_email?: string;
+  tenant_id?: string;
+  page?: number;
+  page_size?: number;
+}
+
+export const accessLogsApi = {
+  listAll: (params?: AccessLogParams) =>
+    apiClient.get<PaginatedAccessLogs>("/api/v1/superadmin/access-logs", { params }),
+};
+
+// ─── Mail Logs ────────────────────────────────────────────────────────────────
+
+interface MailLogParams {
+  status?: string;
+  email_type?: string;
+  page?: number;
+  page_size?: number;
+}
+
+export const mailLogsApi = {
+  listAll: (params?: MailLogParams & { tenant_id?: string }) =>
+    apiClient.get<PaginatedMailLogs>("/api/v1/superadmin/mail-logs", { params }),
+
+  listTenant: (params?: MailLogParams) =>
+    apiClient.get<PaginatedMailLogs>("/api/v1/mail-logs", { params }),
+};
+
+// ─── Solicitudes de cambio ────────────────────────────────────────────────────
+
+// ─── Tipos company users ──────────────────────────────────────────────────────
+
+export interface CompanyUser {
+  id: string;
+  email: string;
+  full_name: string;
+  role: "company_admin" | "reception";
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface TenantLimits {
+  max_company_admins: number;
+  max_reception_users: number;
+  active_company_admins: number;
+  active_reception_users: number;
+}
+
+export const companyUsersApi = {
+  getLimits: () => apiClient.get<TenantLimits>("/api/v1/company/limits"),
+  list: () => apiClient.get<CompanyUser[]>("/api/v1/company/users"),
+  create: (data: { email: string; full_name: string; password: string; role: string }) =>
+    apiClient.post<CompanyUser>("/api/v1/company/users", data),
+  update: (id: string, data: { full_name?: string; role?: string; is_active?: boolean }) =>
+    apiClient.patch<CompanyUser>(`/api/v1/company/users/${id}`, data),
+  resetPassword: (id: string, newPassword: string) =>
+    apiClient.post(`/api/v1/company/users/${id}/reset-password`, { new_password: newPassword }),
+};
 
 export const changeRequestsApi = {
   create: (data: {

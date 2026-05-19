@@ -165,7 +165,7 @@ export function CreateUnitDialog({
             </Button>
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Crear unidad
+              Crear Unidad
             </Button>
           </DialogFooter>
         </form>

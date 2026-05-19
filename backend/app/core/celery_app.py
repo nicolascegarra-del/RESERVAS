@@ -14,7 +14,7 @@ celery_app = Celery(
     "reservas",
     broker=settings.redis_url,
     backend=settings.redis_url,
-    include=["app.tasks.reminders"],
+    include=["app.tasks.reminders", "app.tasks.ocr_tasks"],
 )
 
 celery_app.conf.update(

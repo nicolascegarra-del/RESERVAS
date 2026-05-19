@@ -136,6 +136,17 @@ class PasswordReset(BaseModel):
     new_password: str = Field(min_length=8)
 
 
+class SuperAdminUserCreate(BaseModel):
+    email: EmailStr
+    full_name: str = Field(max_length=255)
+    password: str = Field(min_length=8)
+
+
+class SuperAdminUserUpdate(BaseModel):
+    full_name: str | None = Field(default=None, max_length=255)
+    is_active: bool | None = None
+
+
 # ─── Permisos por rol ─────────────────────────────────────────────────────────
 
 
@@ -156,3 +167,26 @@ class RolePermissionUpdate(BaseModel):
 
 class TenantHardDelete(BaseModel):
     password: str
+
+
+# ─── SMTP global del sistema ──────────────────────────────────────────────────
+
+
+class SystemSMTPRead(BaseModel):
+    smtp_enabled: bool
+    smtp_host: str | None
+    smtp_port: int
+    smtp_user: str | None
+    smtp_password_set: bool
+    smtp_from: str | None
+
+    model_config = {"from_attributes": True}
+
+
+class SystemSMTPUpdate(BaseModel):
+    smtp_enabled: bool | None = None
+    smtp_host: str | None = None
+    smtp_port: int | None = Field(default=None, ge=1, le=65535)
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    smtp_from: str | None = None

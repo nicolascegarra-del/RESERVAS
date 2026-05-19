@@ -15,11 +15,15 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from pydantic import BaseModel
+
 from app.core.database import get_session
 from app.core.dependencies import get_current_user, require_role
 from app.models.tenant import Tenant
 from app.models.user import User, UserRole
 from app.schemas.tenant import TenantBrandingRead, TenantBrandingUpdate
+from app.services import notification_service
+from app.services.notification_service import TEMPLATE_VARIABLES
 
 router = APIRouter(tags=["Configuración"])
 
@@ -75,6 +79,87 @@ async def get_branding(
         accent_color=tenant.accent_color,
         tagline=tenant.tagline,
     )
+
+
+# ─── Mail Notificaciones ─────────────────────────────────────────────────────
+
+
+class NotificationConfigRead(BaseModel):
+    notification_type: str
+    label: str
+    description: str
+    recipient: str
+    is_time_based: bool
+    enabled: bool
+    subject: str
+    body_text: str
+    days_before: int | None
+
+
+class NotificationConfigUpdate(BaseModel):
+    enabled: bool
+    subject: str
+    body_text: str
+    days_before: int | None = None
+
+
+@router.get(
+    "/settings/mail-notifications",
+    response_model=list[NotificationConfigRead],
+    summary="Listar configuración de notificaciones de email",
+)
+async def get_mail_notifications(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    tenant_id: UUID | None = Query(default=None, description="Solo para super_admin"),
+) -> list[NotificationConfigRead]:
+    effective_tenant_id = _resolve_tenant_id(current_user, tenant_id)
+    configs = await notification_service.get_notification_configs(session, effective_tenant_id)
+    return [NotificationConfigRead(**c) for c in configs]
+
+
+@router.put(
+    "/settings/mail-notifications/{notification_type}",
+    response_model=NotificationConfigRead,
+    summary="Actualizar configuración de una notificación de email",
+)
+async def update_mail_notification(
+    notification_type: str,
+    data: NotificationConfigUpdate,
+    current_user: Annotated[
+        User, Depends(require_role(UserRole.company_admin, UserRole.super_admin))
+    ],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    tenant_id: UUID | None = Query(default=None, description="Solo para super_admin"),
+) -> NotificationConfigRead:
+    from app.services.notification_service import NOTIFICATION_TYPES_MAP
+    if notification_type not in NOTIFICATION_TYPES_MAP:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": {"code": "NOTIFICATION_TYPE_NOT_FOUND", "message": "Tipo de notificación no encontrado."}},
+        )
+    effective_tenant_id = _resolve_tenant_id(current_user, tenant_id)
+    result = await notification_service.upsert_notification_config(
+        session=session,
+        tenant_id=effective_tenant_id,
+        notification_type=notification_type,
+        enabled=data.enabled,
+        subject=data.subject,
+        body_text=data.body_text,
+        days_before=data.days_before,
+    )
+    return NotificationConfigRead(**result)
+
+
+@router.get(
+    "/settings/mail-notifications/variables",
+    response_model=dict,
+    summary="Variables disponibles en las plantillas de email",
+)
+async def get_template_variables(
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> dict:
+    return {"variables": TEMPLATE_VARIABLES}
 
 
 @router.patch(

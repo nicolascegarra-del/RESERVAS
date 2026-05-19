@@ -312,7 +312,7 @@ export function CreateFieldDialog({
             </Button>
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Crear campo
+              Crear Campo
             </Button>
           </DialogFooter>
         </form>

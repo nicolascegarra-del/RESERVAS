@@ -231,7 +231,7 @@ export function CancellationPolicyCard({
               {saving ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                "Guardar cambios"
+                "Guardar Cambios"
               )}
             </Button>
           </DialogFooter>

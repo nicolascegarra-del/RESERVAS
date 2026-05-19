@@ -12,9 +12,9 @@ interface AccommodationTypeCardProps {
 }
 
 const CATEGORY_ICONS = {
-  camping: Tent,
-  apartment: Home,
-  cabin: Building2,
+  parcela: Tent,
+  apartamento: Home,
+  albergue: Building2,
 } as const;
 
 export function AccommodationTypeCard({

@@ -235,7 +235,7 @@ export function CancelReservationDialog({
                 Cancelando...
               </>
             ) : (
-              "Confirmar cancelación"
+              "Confirmar Cancelación"
             )}
           </Button>
         </DialogFooter>

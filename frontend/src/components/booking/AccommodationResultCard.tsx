@@ -8,21 +8,21 @@ import type { PublicTypeAvailability } from "@/lib/publicApi";
 import { BookingModal } from "@/components/booking/BookingModal";
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
-  camping: <Tent className="h-5 w-5" />,
-  apartment: <Home className="h-5 w-5" />,
-  cabin: <Building2 className="h-5 w-5" />,
+  parcela: <Tent className="h-5 w-5" />,
+  apartamento: <Home className="h-5 w-5" />,
+  albergue: <Building2 className="h-5 w-5" />,
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
-  camping: "Camping",
-  apartment: "Apartamento",
-  cabin: "Cabaña",
+  parcela: "Parcela",
+  apartamento: "Apartamento",
+  albergue: "Albergue",
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
-  camping: "bg-green-100 text-green-800",
-  apartment: "bg-blue-100 text-blue-800",
-  cabin: "bg-amber-100 text-amber-800",
+  parcela: "bg-green-100 text-green-800",
+  apartamento: "bg-blue-100 text-blue-800",
+  albergue: "bg-amber-100 text-amber-800",
 };
 
 interface AccommodationResultCardProps {

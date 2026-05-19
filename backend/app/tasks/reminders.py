@@ -15,6 +15,7 @@ from sqlmodel import select
 from app.core.celery_app import celery_app
 from app.core.config import settings
 from app.models.reservation import Reservation, ReservationStatus
+from app.models.system_settings import SystemSettings
 from app.models.tenant import Tenant
 from app.services.email_service import send_reminder_email
 
@@ -36,6 +37,9 @@ def send_reminder_emails() -> dict:
 
     engine = create_engine(_sync_db_url)
     with Session(engine) as session:
+        # Obtener SMTP global para fallback
+        system_smtp = session.get(SystemSettings, 1)
+
         reservations = session.exec(
             select(Reservation).where(
                 Reservation.check_in == target_date,
@@ -51,7 +55,7 @@ def send_reminder_emails() -> dict:
                     continue
 
                 frontend_url = settings.frontend_url
-                send_reminder_email(reservation, tenant, frontend_url)
+                send_reminder_email(reservation, tenant, frontend_url, system_smtp)
 
                 reservation.reminder_sent = True
                 session.add(reservation)

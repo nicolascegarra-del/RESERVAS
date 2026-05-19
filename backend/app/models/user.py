@@ -2,7 +2,7 @@
 Modelo User — usuario del sistema con rol y tenant asociado.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 from uuid import UUID, uuid4
 
@@ -26,4 +26,4 @@ class User(SQLModel, table=True):
     # nullable: super_admin no pertenece a ningún tenant
     tenant_id: UUID | None = Field(default=None, foreign_key="tenants.id", index=True)
     is_active: bool = Field(default=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

@@ -8,7 +8,7 @@ RefundOrder: registro de cada devolución generada al cancelar una reserva.
 Puede procesarse manualmente o (Sprint 6) vía Stripe.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from enum import Enum
 from uuid import UUID, uuid4
@@ -62,8 +62,8 @@ class CancellationPolicy(SQLModel, table=True):
     partial_refund_percentage: int = Field(ge=0, le=100)
 
     is_active: bool = Field(default=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class RefundOrder(SQLModel, table=True):
@@ -110,5 +110,5 @@ class RefundOrder(SQLModel, table=True):
 
     notes: str | None = Field(default=None, max_length=2000)
 
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
-    updated_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

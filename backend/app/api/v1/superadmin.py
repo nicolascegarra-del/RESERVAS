@@ -12,10 +12,12 @@ from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.crypto import encrypt_secret
 from app.core.database import get_session
 from app.core.dependencies import require_role
 from app.core.security import hash_password, verify_password
 from app.models.role_permission import PERMISSION_DEFAULTS, PERMISSION_LABELS, RolePermission
+from app.models.system_settings import SystemSettings
 from app.models.tenant import Tenant
 from app.models.user import User, UserRole
 from app.schemas.superadmin import (
@@ -25,6 +27,10 @@ from app.schemas.superadmin import (
     PasswordReset,
     RolePermissionRead,
     RolePermissionUpdate,
+    SuperAdminUserCreate,
+    SuperAdminUserUpdate,
+    SystemSMTPRead,
+    SystemSMTPUpdate,
     TenantConfigRead,
     TenantConfigUpdate,
     TenantCreate,
@@ -244,9 +250,9 @@ async def update_tenant_config(tenant_id: UUID, data: TenantConfigUpdate, _: Sup
     if data.stripe_enabled is not None:
         tenant.stripe_enabled = data.stripe_enabled
     if data.stripe_secret_key is not None:
-        tenant.stripe_secret_key = data.stripe_secret_key or None
+        tenant.stripe_secret_key = encrypt_secret(data.stripe_secret_key) if data.stripe_secret_key else None
     if data.stripe_webhook_secret is not None:
-        tenant.stripe_webhook_secret = data.stripe_webhook_secret or None
+        tenant.stripe_webhook_secret = encrypt_secret(data.stripe_webhook_secret) if data.stripe_webhook_secret else None
     if data.stripe_currency is not None:
         tenant.stripe_currency = data.stripe_currency
     if data.smtp_enabled is not None:
@@ -258,7 +264,7 @@ async def update_tenant_config(tenant_id: UUID, data: TenantConfigUpdate, _: Sup
     if data.smtp_user is not None:
         tenant.smtp_user = data.smtp_user or None
     if data.smtp_password is not None:
-        tenant.smtp_password = data.smtp_password or None
+        tenant.smtp_password = encrypt_secret(data.smtp_password) if data.smtp_password else None
     if data.smtp_from is not None:
         tenant.smtp_from = data.smtp_from or None
 
@@ -276,6 +282,60 @@ async def update_tenant_config(tenant_id: UUID, data: TenantConfigUpdate, _: Sup
         smtp_user=tenant.smtp_user,
         smtp_password_set=bool(tenant.smtp_password),
         smtp_from=tenant.smtp_from,
+    )
+
+
+# ─── SMTP global del sistema ──────────────────────────────────────────────────
+
+
+async def _get_or_create_system_settings(session: AsyncSession) -> SystemSettings:
+    settings = await session.get(SystemSettings, 1)
+    if not settings:
+        settings = SystemSettings()
+        session.add(settings)
+        await session.commit()
+        await session.refresh(settings)
+    return settings
+
+
+@router.get("/system-smtp", response_model=SystemSMTPRead)
+async def get_system_smtp(_: SuperAdminDep, session: SessionDep) -> SystemSMTPRead:
+    s = await _get_or_create_system_settings(session)
+    return SystemSMTPRead(
+        smtp_enabled=s.smtp_enabled,
+        smtp_host=s.smtp_host,
+        smtp_port=s.smtp_port,
+        smtp_user=s.smtp_user,
+        smtp_password_set=bool(s.smtp_password),
+        smtp_from=s.smtp_from,
+    )
+
+
+@router.patch("/system-smtp", response_model=SystemSMTPRead)
+async def update_system_smtp(data: SystemSMTPUpdate, _: SuperAdminDep, session: SessionDep) -> SystemSMTPRead:
+    s = await _get_or_create_system_settings(session)
+    if data.smtp_enabled is not None:
+        s.smtp_enabled = data.smtp_enabled
+    if data.smtp_host is not None:
+        s.smtp_host = data.smtp_host or None
+    if data.smtp_port is not None:
+        s.smtp_port = data.smtp_port
+    if data.smtp_user is not None:
+        s.smtp_user = data.smtp_user or None
+    if data.smtp_password is not None:
+        s.smtp_password = encrypt_secret(data.smtp_password) if data.smtp_password else None
+    if data.smtp_from is not None:
+        s.smtp_from = data.smtp_from or None
+    session.add(s)
+    await session.commit()
+    await session.refresh(s)
+    return SystemSMTPRead(
+        smtp_enabled=s.smtp_enabled,
+        smtp_host=s.smtp_host,
+        smtp_port=s.smtp_port,
+        smtp_user=s.smtp_user,
+        smtp_password_set=bool(s.smtp_password),
+        smtp_from=s.smtp_from,
     )
 
 
@@ -301,7 +361,7 @@ async def _enrich_user(user: User, session: AsyncSession) -> AdminUserRead:
 
 @router.get("/users", response_model=list[AdminUserRead])
 async def list_users(_: SuperAdminDep, session: SessionDep, tenant_id: UUID | None = None) -> list[AdminUserRead]:
-    query = select(User).order_by(User.full_name)
+    query = select(User).where(User.role != UserRole.super_admin).order_by(User.full_name)
     if tenant_id:
         query = query.where(User.tenant_id == tenant_id)
     result = await session.exec(query)
@@ -392,6 +452,74 @@ async def deactivate_user(user_id: UUID, _: SuperAdminDep, session: SessionDep) 
         raise HTTPException(status_code=404, detail={"error": {"code": "USER_NOT_FOUND", "message": "Usuario no encontrado."}})
     user.is_active = False
     session.add(user)
+    await session.commit()
+
+
+# ─── Usuarios Super Admin ─────────────────────────────────────────────────────
+
+
+@router.get("/superadmin-users", response_model=list[AdminUserRead])
+async def list_superadmin_users(_: SuperAdminDep, session: SessionDep) -> list[AdminUserRead]:
+    result = await session.exec(select(User).where(User.role == UserRole.super_admin).order_by(User.full_name))
+    return [await _enrich_user(u, session) for u in result.all()]
+
+
+@router.post("/superadmin-users", response_model=AdminUserRead, status_code=status.HTTP_201_CREATED)
+async def create_superadmin_user(data: SuperAdminUserCreate, _: SuperAdminDep, session: SessionDep) -> AdminUserRead:
+    existing = await session.exec(select(User).where(User.email == str(data.email)))
+    if existing.first():
+        raise HTTPException(status_code=409, detail={"error": {"code": "EMAIL_TAKEN", "message": "El email ya está registrado."}})
+    user = User(
+        email=str(data.email),
+        full_name=data.full_name,
+        hashed_password=hash_password(data.password),
+        role=UserRole.super_admin,
+        tenant_id=None,
+    )
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    return await _enrich_user(user, session)
+
+
+@router.patch("/superadmin-users/{user_id}", response_model=AdminUserRead)
+async def update_superadmin_user(user_id: UUID, data: SuperAdminUserUpdate, current_user: SuperAdminDep, session: SessionDep) -> AdminUserRead:
+    user = await session.get(User, user_id)
+    if not user or user.role != UserRole.super_admin:
+        raise HTTPException(status_code=404, detail={"error": {"code": "USER_NOT_FOUND", "message": "Usuario no encontrado."}})
+    if user_id == current_user.id:
+        raise HTTPException(status_code=403, detail={"error": {"code": "CANNOT_MODIFY_SELF", "message": "No puedes modificar tu propia cuenta desde aquí."}})
+    if data.full_name is not None:
+        user.full_name = data.full_name
+    if data.is_active is not None:
+        user.is_active = data.is_active
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    return await _enrich_user(user, session)
+
+
+@router.post("/superadmin-users/{user_id}/reset-password", status_code=status.HTTP_204_NO_CONTENT)
+async def reset_superadmin_password(user_id: UUID, data: PasswordReset, _: SuperAdminDep, session: SessionDep) -> None:
+    user = await session.get(User, user_id)
+    if not user or user.role != UserRole.super_admin:
+        raise HTTPException(status_code=404, detail={"error": {"code": "USER_NOT_FOUND", "message": "Usuario no encontrado."}})
+    user.hashed_password = hash_password(data.new_password)
+    session.add(user)
+    await session.commit()
+
+
+@router.delete("/superadmin-users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_superadmin_user(user_id: UUID, current_user: SuperAdminDep, session: SessionDep) -> None:
+    user = await session.get(User, user_id)
+    if not user or user.role != UserRole.super_admin:
+        raise HTTPException(status_code=404, detail={"error": {"code": "USER_NOT_FOUND", "message": "Usuario no encontrado."}})
+    if user_id == current_user.id:
+        raise HTTPException(status_code=403, detail={"error": {"code": "CANNOT_DELETE_SELF", "message": "No puedes eliminar tu propia cuenta."}})
+    count_result = await session.exec(select(User).where(User.role == UserRole.super_admin, User.is_active == True))  # noqa: E712
+    if len(count_result.all()) <= 1:
+        raise HTTPException(status_code=409, detail={"error": {"code": "LAST_SUPERADMIN", "message": "No puedes eliminar el único Super Admin activo."}})
+    await session.delete(user)
     await session.commit()
 
 

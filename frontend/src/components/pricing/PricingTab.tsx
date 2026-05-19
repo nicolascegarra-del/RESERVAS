@@ -84,7 +84,7 @@ export function PricingTab({
     }
   };
 
-  const isCamping = category === "camping";
+  const isCamping = category === "parcela";
   const currency = pricingModel?.currency ?? "EUR";
 
   if (isLoading) {

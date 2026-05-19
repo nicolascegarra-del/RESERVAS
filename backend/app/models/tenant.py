@@ -2,7 +2,7 @@
 Modelo Tenant — representa una empresa en el sistema multi-tenant.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from sqlmodel import Field, SQLModel
@@ -15,7 +15,7 @@ class Tenant(SQLModel, table=True):
     name: str = Field(max_length=255, index=True)
     slug: str = Field(max_length=100, unique=True, index=True)
     is_active: bool = Field(default=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     # ─── Branding personalizable por empresa ─────────────────────────────────
     brand_name: str | None = Field(default=None, max_length=255)
@@ -52,3 +52,10 @@ class Tenant(SQLModel, table=True):
     # ─── Límites de usuarios por empresa ─────────────────────────────────────
     max_company_admins: int = Field(default=5)
     max_reception_users: int = Field(default=20)
+
+    # ─── Credenciales SES — parte de viajeros (Ministerio del Interior) ───────
+    ses_establishment_code: str | None = Field(default=None, max_length=50)
+    ses_username: str | None = Field(default=None, max_length=255)
+    # Cifrada con app.core.crypto.encrypt_secret
+    ses_password: str | None = Field(default=None, max_length=500)
+    ses_enabled: bool = Field(default=False)

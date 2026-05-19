@@ -36,3 +36,9 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+# Claude Code
+.claude/
+
+# Archivos temporales
+*.patch

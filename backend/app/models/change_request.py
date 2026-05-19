@@ -6,7 +6,7 @@ Flujo:
   - Admin la ve en /solicitudes, la aprueba (aplica el cambio) o la rechaza.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from enum import Enum
 from uuid import UUID, uuid4
@@ -62,4 +62,4 @@ class ReservationChangeRequest(SQLModel, table=True):
     review_comment: str | None = Field(default=None, max_length=1000)
     reviewed_at: datetime | None = Field(default=None)
 
-    created_at: datetime = Field(default_factory=lambda: datetime.utcnow())
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

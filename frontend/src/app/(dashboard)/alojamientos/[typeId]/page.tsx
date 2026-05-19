@@ -42,9 +42,9 @@ import type {
 } from "@/types";
 
 const CATEGORY_ICONS = {
-  camping: Tent,
-  apartment: Home,
-  cabin: Building2,
+  parcela: Tent,
+  apartamento: Home,
+  albergue: Building2,
 } as const;
 
 export default function AccommodationTypeDetailPage() {
@@ -279,7 +279,7 @@ export default function AccommodationTypeDetailPage() {
                   className="min-h-[44px]"
                 >
                   <Plus className="mr-2 h-4 w-4" />
-                  Nueva unidad
+                  Nueva Unidad
                 </Button>
               </div>
             )}
@@ -360,7 +360,7 @@ export default function AccommodationTypeDetailPage() {
                   className="min-h-[44px]"
                 >
                   <Plus className="mr-2 h-4 w-4" />
-                  Nuevo campo
+                  Nuevo Campo
                 </Button>
               </div>
             )}
@@ -447,7 +447,7 @@ export default function AccommodationTypeDetailPage() {
                   className="min-h-[44px]"
                 >
                   <Plus className="mr-2 h-4 w-4" />
-                  Nuevo extra
+                  Nuevo Extra
                 </Button>
               </div>
             )}

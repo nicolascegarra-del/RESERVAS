@@ -17,6 +17,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_session
+from app.core.rate_limit import limiter
 from app.models.accommodation import AccommodationUnit, AccommodationType
 from app.models.cancellation import CancellationPolicy
 from app.models.reservation import Reservation, ReservationStatus
@@ -317,7 +318,9 @@ def _calculate_refund_preview(
     status_code=status.HTTP_201_CREATED,
     summary="Crear reserva pública",
 )
+@limiter.limit("5/minute")
 async def create_public_reservation(
+    request: Request,
     tenant_slug: str,
     data: PublicReservationCreate,
     session: SessionDep,
@@ -413,7 +416,7 @@ async def create_public_reservation(
         await session.commit()
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail={"error": {"code": "STRIPE_ERROR", "message": f"Error al iniciar el pago: {exc}"}},
+            detail={"error": {"code": "PAYMENT_UNAVAILABLE", "message": "No fue posible iniciar el pago. Inténtalo de nuevo en unos minutos."}},
         ) from exc
 
     return PublicReservationResponse(

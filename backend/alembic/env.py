@@ -3,6 +3,7 @@ Configuración del entorno de Alembic para migraciones asíncronas con asyncpg.
 """
 
 import asyncio
+import os
 from logging.config import fileConfig
 
 from alembic import context
@@ -16,6 +17,11 @@ from app.models import RolePermission, Tenant, User  # noqa: F401
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+
+# Leer DATABASE_URL del entorno para no depender del valor hardcodeado en alembic.ini
+_db_url = os.getenv("DATABASE_URL")
+if _db_url:
+    config.set_main_option("sqlalchemy.url", _db_url)
 
 target_metadata = SQLModel.metadata
 

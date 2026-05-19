@@ -4,12 +4,13 @@ Router de autenticación: login, refresh token y logout.
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Request, Response
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_session
 from app.core.dependencies import get_refresh_token_user
+from app.core.rate_limit import limiter
 from app.core.security import create_access_token
 from app.models.user import User
 from app.schemas.auth import LoginRequest, TokenResponse
@@ -27,12 +28,15 @@ REFRESH_COOKIE_MAX_AGE = settings.jwt_refresh_expire_days * 24 * 60 * 60
     summary="Iniciar sesión",
     description="Autentica con email y contraseña. Devuelve access_token en JSON y establece refresh_token en HttpOnly cookie.",
 )
+@limiter.limit("10/minute")
 async def login(
+    request: Request,
     credentials: LoginRequest,
     response: Response,
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> TokenResponse:
-    token_response, refresh_token = await login_user(credentials, session)
+    ip = request.client.host if request.client else None
+    token_response, refresh_token = await login_user(credentials, session, ip_address=ip)
 
     # Refresh token en HttpOnly cookie — nunca expuesto al JS del cliente
     response.set_cookie(

@@ -30,11 +30,14 @@ from app.schemas.reservation import (
     AvailabilityResult,
     PaginatedReservations,
     ReservationCreate,
+    ReservationHistoryEntry,
     ReservationRead,
     ReservationStatusUpdate,
     ReservationUpdate,
 )
 from app.services import reservation_service
+from app.services import history_service
+from app.services import guest_doc_service
 
 router = APIRouter(tags=["Reservas"])
 
@@ -147,11 +150,32 @@ async def create_reservation(
     tenant_id: UUID | None = Query(default=None, description="Solo para super_admin"),
 ) -> ReservationRead:
     effective_tenant_id = _resolve_tenant_id(current_user, tenant_id)
-    return await reservation_service.create_reservation(
+    result = await reservation_service.create_reservation(
         session=session,
         data=data,
         tenant_id=effective_tenant_id,
     )
+    await history_service.log_reservation_event(
+        session=session,
+        reservation_id=result.id,
+        tenant_id=effective_tenant_id,
+        user=current_user,
+        action="created",
+        description=f"Reserva creada para {result.guest_name} ({result.check_in} → {result.check_out}, {result.nights} noches)",
+    )
+    # Generar el token público de carga de documentos de viajeros.
+    # Si falla (p. ej. tabla aún sin migrar) no debe romper la reserva.
+    try:
+        reservation_model = await reservation_service._get_reservation_model(
+            session=session,
+            reservation_id=result.id,
+            tenant_id=effective_tenant_id,
+        )
+        await guest_doc_service.get_or_create_token(session, reservation_model)
+    except Exception:  # noqa: BLE001
+        pass
+    await session.commit()
+    return result
 
 
 # ─── Stats del dashboard — DEBE ir antes de {reservation_id} ────────────────
@@ -366,6 +390,29 @@ async def get_reservation(
     )
 
 
+@router.get(
+    "/reservations/{reservation_id}/history",
+    response_model=list[ReservationHistoryEntry],
+    summary="Historial de cambios de una reserva",
+    description="Devuelve todos los eventos registrados para esta reserva, del más reciente al más antiguo.",
+)
+async def get_reservation_history(
+    reservation_id: UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    tenant_id: UUID | None = Query(default=None, description="Solo para super_admin"),
+) -> list[ReservationHistoryEntry]:
+    effective_tenant_id = _resolve_tenant_id(current_user, tenant_id)
+    # Verify reservation exists and belongs to this tenant
+    await reservation_service.get_reservation(
+        session=session, reservation_id=reservation_id, tenant_id=effective_tenant_id,
+    )
+    entries = await history_service.get_reservation_history(
+        session=session, reservation_id=reservation_id, tenant_id=effective_tenant_id,
+    )
+    return [ReservationHistoryEntry.model_validate(e) for e in entries]
+
+
 @router.patch(
     "/reservations/{reservation_id}",
     response_model=ReservationRead,
@@ -383,12 +430,36 @@ async def update_reservation(
     tenant_id: UUID | None = Query(default=None, description="Solo para super_admin"),
 ) -> ReservationRead:
     effective_tenant_id = _resolve_tenant_id(current_user, tenant_id)
-    return await reservation_service.update_reservation(
+    result = await reservation_service.update_reservation(
         session=session,
         reservation_id=reservation_id,
         data=data,
         tenant_id=effective_tenant_id,
     )
+    changed_fields = [k for k, v in data.model_dump(exclude_none=True).items() if k != "internal_notes"]
+    notes_changed = data.internal_notes is not None
+    if changed_fields:
+        await history_service.log_reservation_event(
+            session=session,
+            reservation_id=reservation_id,
+            tenant_id=effective_tenant_id,
+            user=current_user,
+            action="guest_updated",
+            description="Datos del huésped actualizados",
+            changes={"fields": changed_fields},
+        )
+    if notes_changed:
+        await history_service.log_reservation_event(
+            session=session,
+            reservation_id=reservation_id,
+            tenant_id=effective_tenant_id,
+            user=current_user,
+            action="notes_updated",
+            description="Notas internas actualizadas",
+        )
+    if changed_fields or notes_changed:
+        await session.commit()
+    return result
 
 
 @router.patch(
@@ -411,11 +482,35 @@ async def update_reservation_status(
     tenant_id: UUID | None = Query(default=None, description="Solo para super_admin"),
 ) -> ReservationRead:
     effective_tenant_id = _resolve_tenant_id(current_user, tenant_id)
-    return await reservation_service.update_reservation_status(
+    old_reservation = await reservation_service.get_reservation(
+        session=session, reservation_id=reservation_id, tenant_id=effective_tenant_id,
+    )
+    result = await reservation_service.update_reservation_status(
         session=session,
         reservation_id=reservation_id,
         data=data,
         tenant_id=effective_tenant_id,
     )
+    _STATUS_LABELS = {
+        "confirmed": "confirmada",
+        "checked_in": "en casa",
+        "checked_out": "salida registrada",
+        "cancelled": "cancelada",
+        "no_show": "no presentado",
+        "pending_payment": "pendiente de pago",
+    }
+    old_label = _STATUS_LABELS.get(old_reservation.status, old_reservation.status)
+    new_label = _STATUS_LABELS.get(result.status, result.status)
+    await history_service.log_reservation_event(
+        session=session,
+        reservation_id=reservation_id,
+        tenant_id=effective_tenant_id,
+        user=current_user,
+        action="status_changed",
+        description=f"Estado cambiado: {old_label} → {new_label}",
+        changes={"from": old_reservation.status, "to": result.status},
+    )
+    await session.commit()
+    return result
 
 

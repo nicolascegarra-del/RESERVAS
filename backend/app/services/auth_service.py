@@ -12,20 +12,42 @@ from app.core.security import (
     create_refresh_token,
     verify_password,
 )
+from app.models.access_log import AccessLog
 from app.models.user import User
 from app.schemas.auth import LoginRequest, TokenResponse
+
+
+async def _log_access(
+    session: AsyncSession,
+    user_email: str,
+    event_type: str,
+    user: User | None = None,
+    ip_address: str | None = None,
+    detail: str | None = None,
+) -> None:
+    try:
+        log = AccessLog(
+            user_id=user.id if user else None,
+            user_email=user_email,
+            user_role=user.role.value if user else None,
+            tenant_id=user.tenant_id if user else None,
+            ip_address=ip_address,
+            event_type=event_type,
+            detail=detail,
+        )
+        session.add(log)
+        await session.commit()
+    except Exception:
+        pass  # nunca debe romper el flujo de autenticación
 
 
 async def login_user(
     credentials: LoginRequest,
     session: AsyncSession,
+    ip_address: str | None = None,
 ) -> tuple[TokenResponse, str]:
     """
     Autentica un usuario con email y contraseña.
-
-    Args:
-        credentials: Email y contraseña del usuario.
-        session: Sesión de BD.
 
     Returns:
         Tupla de (TokenResponse con access_token, refresh_token string).
@@ -33,11 +55,9 @@ async def login_user(
     Raises:
         HTTPException 401: Si las credenciales son inválidas o la cuenta está inactiva.
     """
-    # Buscar usuario por email
     result = await session.exec(select(User).where(User.email == credentials.email))
     user = result.first()
 
-    # Usamos el mismo mensaje genérico para no revelar si el email existe
     invalid_credentials_error = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail={
@@ -49,12 +69,15 @@ async def login_user(
     )
 
     if not user:
+        await _log_access(session, credentials.email, "login_failure", ip_address=ip_address, detail="Usuario no encontrado")
         raise invalid_credentials_error
 
     if not verify_password(credentials.password, user.hashed_password):
+        await _log_access(session, credentials.email, "login_failure", user=user, ip_address=ip_address, detail="Contraseña incorrecta")
         raise invalid_credentials_error
 
     if not user.is_active:
+        await _log_access(session, credentials.email, "login_failure", user=user, ip_address=ip_address, detail="Cuenta desactivada")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={
@@ -71,5 +94,7 @@ async def login_user(
         tenant_id=user.tenant_id,
     )
     refresh_token = create_refresh_token(user_id=user.id)
+
+    await _log_access(session, credentials.email, "login_success", user=user, ip_address=ip_address)
 
     return TokenResponse(access_token=access_token), refresh_token

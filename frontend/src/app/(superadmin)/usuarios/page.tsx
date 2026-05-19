@@ -19,14 +19,12 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { adminUsersApi, tenantsApi, type AdminUser, type TenantSummary } from "@/lib/superadminApi";
 
-export const ROLE_LABELS: Record<string, string> = {
-  super_admin: "Super Admin",
+const ROLE_LABELS: Record<string, string> = {
   company_admin: "Admin Empresa",
   reception: "Gestión",
 };
 
 const ROLE_COLORS: Record<string, string> = {
-  super_admin: "bg-purple-100 text-purple-700",
   company_admin: "bg-blue-100 text-blue-700",
   reception: "bg-green-100 text-green-700",
 };
@@ -54,7 +52,7 @@ function CreateUserDialog({ open, onOpenChange, tenants, preselectedTenantId, on
     try {
       const res = await adminUsersApi.create({
         ...form,
-        tenant_id: form.role === "super_admin" ? null : (form.tenant_id || null),
+        tenant_id: form.tenant_id || null,
       });
       onCreated(res.data);
       setForm({ email: "", full_name: "", password: "", role: "reception", tenant_id: preselectedTenantId });
@@ -88,25 +86,22 @@ function CreateUserDialog({ open, onOpenChange, tenants, preselectedTenantId, on
               className="flex h-[44px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
               <option value="reception">Gestión</option>
               <option value="company_admin">Admin Empresa</option>
-              <option value="super_admin">Super Admin</option>
             </select>
           </div>
-          {form.role !== "super_admin" && (
-            <div className="space-y-1.5">
-              <Label>Empresa</Label>
-              <select value={form.tenant_id} onChange={(e) => setForm({ ...form, tenant_id: e.target.value })}
-                className="flex h-[44px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-                <option value="">— Selecciona empresa —</option>
-                {tenants.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
-            </div>
-          )}
+          <div className="space-y-1.5">
+            <Label>Empresa</Label>
+            <select value={form.tenant_id} onChange={(e) => setForm({ ...form, tenant_id: e.target.value })}
+              className="flex h-[44px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+              <option value="">— Selecciona empresa —</option>
+              {tenants.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
         </div>
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancelar</Button>
           <Button onClick={() => void handleCreate()} disabled={saving} className="bg-klyp-accent hover:bg-klyp-accent/90 text-white">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Crear usuario"}
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Crear Usuario"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -136,7 +131,7 @@ function ResetPasswordDialog({ userId, open, onOpenChange }: { userId: string; o
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-sm">
-        <DialogHeader><DialogTitle>Cambiar contraseña</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>Cambiar Contraseña</DialogTitle></DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
             <Label>Nueva contraseña</Label>
@@ -148,7 +143,7 @@ function ResetPasswordDialog({ userId, open, onOpenChange }: { userId: string; o
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancelar</Button>
           <Button onClick={() => void handleReset()} disabled={saving} className="bg-klyp-accent hover:bg-klyp-accent/90 text-white">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Cambiar contraseña"}
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Cambiar Contraseña"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -252,17 +247,19 @@ function UsuariosPageContent() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-klyp-navy">Usuarios</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-klyp-navy">Usuarios</h1>
           <p className="text-sm text-klyp-gray mt-0.5">
             {selectedTenantName
               ? <>Usuarios de <span className="font-medium text-klyp-navy">{selectedTenantName}</span></>
               : "Gestión de todos los usuarios del sistema."}
           </p>
         </div>
-        <Button onClick={() => setShowCreate(true)} className="bg-klyp-accent hover:bg-klyp-accent/90 text-white min-h-[44px]">
-          <Plus className="mr-2 h-4 w-4" />Nuevo Usuario
+        <Button onClick={() => setShowCreate(true)} className="bg-klyp-accent hover:bg-klyp-accent/90 text-white min-h-[44px] shrink-0">
+          <Plus className="mr-1 sm:mr-2 h-4 w-4" />
+          <span className="hidden sm:inline">Nuevo Usuario</span>
+          <span className="sm:hidden">Nuevo</span>
         </Button>
       </div>
 
@@ -272,12 +269,12 @@ function UsuariosPageContent() {
           placeholder="Buscar por nombre o email..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="h-[44px] max-w-xs"
+          className="h-[44px] w-full sm:max-w-xs"
         />
         <select
           value={filterTenant}
           onChange={(e) => setFilterTenant(e.target.value)}
-          className="h-[44px] rounded-md border border-input bg-background px-3 py-2 text-sm min-w-[180px]"
+          className="h-[44px] rounded-md border border-input bg-background px-3 py-2 text-sm w-full sm:min-w-[180px] sm:w-auto"
         >
           <option value="">Todas las empresas</option>
           {tenants.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
@@ -288,7 +285,6 @@ function UsuariosPageContent() {
           className="h-[44px] rounded-md border border-input bg-background px-3 py-2 text-sm"
         >
           <option value="all">Todos los roles</option>
-          <option value="super_admin">Super Admin</option>
           <option value="company_admin">Admin Empresa</option>
           <option value="reception">Gestión</option>
         </select>
@@ -315,7 +311,7 @@ function UsuariosPageContent() {
                     checked={visibleCols.has(c.key)}
                     onChange={() => setVisibleCols((prev) => {
                       const next = new Set(prev);
-                      next.has(c.key) ? next.delete(c.key) : next.add(c.key);
+                      if (next.has(c.key)) { next.delete(c.key); } else { next.add(c.key); }
                       return next;
                     })}
                     className="rounded"

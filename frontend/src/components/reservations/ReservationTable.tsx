@@ -13,11 +13,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ReservationStatusBadge } from "./ReservationStatusBadge";
-import type { Reservation } from "@/types";
+import { Badge } from "@/components/ui/badge";
+import type { DocStatus, Reservation } from "@/types";
+import { DOC_STATUS_COLORS, DOC_STATUS_LABELS } from "@/types";
 
 interface ReservationTableProps {
   reservations: Reservation[];
   isLoading?: boolean;
+  /** Mapa reservation_id → estado de documentación de viajeros. */
+  docStatusMap?: Record<string, DocStatus>;
 }
 
 /** Formatea una fecha "YYYY-MM-DD" a "DD/MM/YYYY" para la UI. */
@@ -43,6 +47,7 @@ function formatPrice(value: string, currency: string): string {
 export function ReservationTable({
   reservations,
   isLoading = false,
+  docStatusMap,
 }: ReservationTableProps) {
   if (isLoading) {
     return (
@@ -77,11 +82,14 @@ export function ReservationTable({
             <TableHead className="whitespace-nowrap text-right">Noches</TableHead>
             <TableHead className="whitespace-nowrap text-right">Total</TableHead>
             <TableHead className="whitespace-nowrap">Estado</TableHead>
+            <TableHead className="whitespace-nowrap">Docs</TableHead>
             <TableHead className="whitespace-nowrap sr-only">Acciones</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {reservations.map((reservation) => (
+          {reservations.map((reservation) => {
+            const docStatus = docStatusMap?.[reservation.id];
+            return (
             <TableRow key={reservation.id} className="hover:bg-klyp-pale/30">
               <TableCell className="whitespace-nowrap">
                 <div>
@@ -113,6 +121,15 @@ export function ReservationTable({
                 <ReservationStatusBadge status={reservation.status} />
               </TableCell>
               <TableCell className="whitespace-nowrap">
+                {docStatus ? (
+                  <Badge className={DOC_STATUS_COLORS[docStatus]}>
+                    {DOC_STATUS_LABELS[docStatus]}
+                  </Badge>
+                ) : (
+                  <span className="text-xs text-klyp-gray">—</span>
+                )}
+              </TableCell>
+              <TableCell className="whitespace-nowrap">
                 <Link href={`/reservas/${reservation.id}`}>
                   <Button
                     variant="ghost"
@@ -125,7 +142,8 @@ export function ReservationTable({
                 </Link>
               </TableCell>
             </TableRow>
-          ))}
+            );
+          })}
         </TableBody>
       </Table>
     </div>

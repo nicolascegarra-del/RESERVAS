@@ -75,7 +75,7 @@ export function CreateSeasonDialog({
   onSuccess,
 }: CreateSeasonDialogProps) {
   const isEditing = !!seasonToEdit;
-  const isCamping = category === "camping";
+  const isCamping = category === "parcela";
 
   const {
     register,
@@ -319,8 +319,8 @@ export function CreateSeasonDialog({
               {isSubmitting
                 ? "Guardando..."
                 : isEditing
-                  ? "Actualizar temporada"
-                  : "Crear temporada"}
+                  ? "Actualizar Temporada"
+                  : "Crear Temporada"}
             </Button>
           </DialogFooter>
         </form>

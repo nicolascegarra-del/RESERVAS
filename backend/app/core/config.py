@@ -3,7 +3,10 @@ Configuración centralizada de la aplicación usando pydantic-settings.
 Lee variables de entorno y .env automáticamente.
 """
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_INSECURE_DEFAULT = "changeme-use-openssl-rand-hex-32"
 
 
 class Settings(BaseSettings):
@@ -13,10 +16,25 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
+    @model_validator(mode="after")
+    def validate_secrets_in_production(self) -> "Settings":
+        if self.app_env == "production":
+            if self.jwt_secret_key == _INSECURE_DEFAULT:
+                raise ValueError(
+                    "JWT_SECRET_KEY tiene el valor por defecto inseguro. "
+                    "Define JWT_SECRET_KEY en las variables de entorno de producción."
+                )
+            if self.app_secret_key == _INSECURE_DEFAULT:
+                raise ValueError(
+                    "APP_SECRET_KEY tiene el valor por defecto inseguro. "
+                    "Define APP_SECRET_KEY en las variables de entorno de producción."
+                )
+        return self
+
     # App
     app_name: str = "reservas-backend"
     app_env: str = "development"
-    app_secret_key: str = "changeme-use-openssl-rand-hex-32"
+    app_secret_key: str = _INSECURE_DEFAULT
     debug: bool = True
 
     # Base de datos
@@ -27,7 +45,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     # JWT
-    jwt_secret_key: str = "changeme-use-openssl-rand-hex-32"
+    jwt_secret_key: str = _INSECURE_DEFAULT
     jwt_algorithm: str = "HS256"
     jwt_access_expire_minutes: int = 15
     jwt_refresh_expire_days: int = 7

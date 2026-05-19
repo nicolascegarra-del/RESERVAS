@@ -9,7 +9,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, EmailStr, Field, model_validator
 
 from app.schemas.pricing import PriceCalculationResult
 
@@ -82,7 +82,7 @@ class PublicReservationCreate(BaseModel):
     unit_id: UUID
     accommodation_type_id: UUID
     guest_name: str = Field(max_length=200)
-    guest_email: str = Field(max_length=254)
+    guest_email: EmailStr = Field(max_length=254)
     guest_phone: str | None = Field(default=None, max_length=50)
     guest_id_type: str | None = Field(default=None, max_length=20)
     guest_id_number: str | None = Field(default=None, max_length=30)

@@ -45,7 +45,7 @@ export function SeasonTable({
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [seasonToEdit, setSeasonToEdit] = useState<Season | null>(null);
 
-  const isCamping = category === "camping";
+  const isCamping = category === "parcela";
 
   const handleSeasonSaved = (season: Season) => {
     const existing = seasons.find((s) => s.id === season.id);
@@ -109,7 +109,7 @@ export function SeasonTable({
             className="min-h-[44px]"
           >
             <Plus className="mr-2 h-4 w-4" />
-            Añadir temporada
+            Añadir Temporada
           </Button>
         </div>
       )}

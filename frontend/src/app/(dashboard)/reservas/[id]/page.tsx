@@ -2,20 +2,23 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ChevronLeft, Loader2, Save, Pencil, X } from "lucide-react";
+import { ChevronLeft, Loader2, Save, Pencil, X, History, User, Clock, Users, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ReservationStatusBadge } from "@/components/reservations/ReservationStatusBadge";
 import { PriceBreakdown } from "@/components/reservations/PriceBreakdown";
 import { CancelReservationDialog } from "@/components/reservations/CancelReservationDialog";
 import { RequestChangeDialog } from "@/components/reservations/RequestChangeDialog";
 import { GuestForm, type GuestFormValues } from "@/components/reservations/GuestForm";
+import { GuestDocsTab } from "@/components/reservations/GuestDocsTab";
+import { VehiclesAndAccessTab } from "@/components/reservations/VehiclesAndAccessTab";
 import { reservationsApi } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
-import type { Reservation, ReservationStatus } from "@/types";
+import type { Reservation, ReservationHistoryEntry, ReservationStatus } from "@/types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -110,6 +113,11 @@ export default function ReservaDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  // Historial
+  const [history, setHistory] = useState<ReservationHistoryEntry[]>([]);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
   // Estado de notas internas editables
   const [notes, setNotes] = useState("");
   const [isSavingNotes, setIsSavingNotes] = useState(false);
@@ -143,6 +151,20 @@ export default function ReservaDetailPage() {
       setIsLoading(false);
     }
   }, [reservationId]);
+
+  const loadHistory = useCallback(async () => {
+    if (historyLoaded) return;
+    setHistoryLoading(true);
+    try {
+      const res = await reservationsApi.getHistory(reservationId);
+      setHistory(res.data);
+      setHistoryLoaded(true);
+    } catch {
+      // silencioso
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [reservationId, historyLoaded]);
 
   useEffect(() => {
     void fetchReservation();
@@ -297,6 +319,26 @@ export default function ReservaDetailPage() {
         />
       </div>
 
+      {/* Pestañas principales */}
+      <Tabs defaultValue="detalle" onValueChange={(v) => { if (v === "historial") void loadHistory(); }}>
+        <TabsList className="mb-4">
+          <TabsTrigger value="detalle">Detalle</TabsTrigger>
+          <TabsTrigger value="huespedes" className="flex items-center gap-1.5">
+            <Users className="h-3.5 w-3.5" />
+            Huéspedes
+          </TabsTrigger>
+          <TabsTrigger value="historial" className="flex items-center gap-1.5">
+            <History className="h-3.5 w-3.5" />
+            Historial
+          </TabsTrigger>
+          <TabsTrigger value="acceso" className="flex items-center gap-1.5">
+            <ShieldCheck className="h-3.5 w-3.5" />
+            Acceso
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="detalle">
+
       {/* Grid principal */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Columna izquierda — datos y notas */}
@@ -428,7 +470,7 @@ export default function ReservaDetailPage() {
                       ) : (
                         <>
                           <Save className="mr-1.5 h-4 w-4" />
-                          Guardar cambios
+                          Guardar Cambios
                         </>
                       )}
                     </Button>
@@ -680,6 +722,123 @@ export default function ReservaDetailPage() {
             </CardContent>
           </Card>
         </div>
+      </div>
+
+        </TabsContent>
+
+        {/* ── Pestaña Huéspedes ── */}
+        <TabsContent value="huespedes">
+          <GuestDocsTab reservation={reservation} />
+        </TabsContent>
+
+        {/* ── Pestaña Historial ── */}
+        <TabsContent value="historial">
+          <ReservationHistoryTab
+            history={history}
+            loading={historyLoading}
+          />
+        </TabsContent>
+
+        {/* ── Pestaña Acceso ── */}
+        <TabsContent value="acceso">
+          <VehiclesAndAccessTab
+            reservationId={reservation.id}
+            numPersons={reservation.num_persons}
+          />
+        </TabsContent>
+
+      </Tabs>
+    </div>
+  );
+}
+
+// ─── Componente de historial ──────────────────────────────────────────────────
+
+const _DEFAULT_ACTION_STYLE = { icon: <span className="text-base">●</span>, color: "bg-gray-100 text-gray-600 border-gray-200" };
+
+const ACTION_ICONS: Record<string, { icon: React.ReactNode; color: string }> = {
+  created:        { icon: <span className="text-base">✦</span>, color: "bg-green-100 text-green-700 border-green-200" },
+  status_changed: { icon: <span className="text-base">⇄</span>, color: "bg-blue-100 text-blue-700 border-blue-200" },
+  guest_updated:  { icon: <span className="text-base">✎</span>, color: "bg-amber-100 text-amber-700 border-amber-200" },
+  notes_updated:  { icon: <span className="text-base">📝</span>, color: "bg-gray-100 text-gray-600 border-gray-200" },
+  cancelled:      { icon: <span className="text-base">✕</span>, color: "bg-red-100 text-red-700 border-red-200" },
+};
+
+const ROLE_BADGE: Record<string, string> = {
+  company_admin: "Admin Empresa",
+  reception:     "Gestión",
+  super_admin:   "Superadmin",
+};
+
+function ReservationHistoryTab({ history, loading }: {
+  history: ReservationHistoryEntry[];
+  loading: boolean;
+}) {
+  if (loading) {
+    return (
+      <div className="space-y-3 max-w-2xl">
+        {[...Array(4)].map((_, i) => (
+          <Skeleton key={i} className="h-16 w-full rounded-lg" />
+        ))}
+      </div>
+    );
+  }
+
+  if (history.length === 0) {
+    return (
+      <div className="text-center py-14 text-klyp-gray">
+        <History className="h-8 w-8 mx-auto mb-2 opacity-30" />
+        <p className="text-sm">No hay eventos registrados para esta reserva.</p>
+        <p className="text-xs mt-1 text-klyp-gray/70">Los cambios futuros aparecerán aquí.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-2xl">
+      <div className="relative">
+        {/* Línea vertical de tiempo */}
+        <div className="absolute left-5 top-0 bottom-0 w-px bg-gray-200" />
+
+        <ol className="space-y-0">
+          {history.map((entry, idx) => {
+            const style = ACTION_ICONS[entry.action] ?? _DEFAULT_ACTION_STYLE;
+            const date = new Date(entry.created_at);
+            const dateStr = date.toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" });
+            const timeStr = date.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+
+            return (
+              <li key={entry.id} className={`relative flex gap-4 pb-6 ${idx === history.length - 1 ? "pb-0" : ""}`}>
+                {/* Icono del evento */}
+                <div className={`relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-medium ${style.color}`}>
+                  {style.icon}
+                </div>
+
+                {/* Contenido */}
+                <div className="flex-1 pt-1.5 min-w-0">
+                  <p className="text-sm font-medium text-klyp-navy leading-snug">{entry.description}</p>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1">
+                    <span className="flex items-center gap-1 text-xs text-klyp-gray">
+                      <User className="h-3 w-3" />
+                      {entry.user_name}
+                      <span className="text-klyp-gray/60">({ROLE_BADGE[entry.user_role] ?? entry.user_role})</span>
+                    </span>
+                    <span className="flex items-center gap-1 text-xs text-klyp-gray">
+                      <Clock className="h-3 w-3" />
+                      {dateStr} a las {timeStr}
+                    </span>
+                  </div>
+                  {/* Detalles del cambio */}
+                  {entry.changes && entry.action === "guest_updated" && Array.isArray(entry.changes["fields"]) && (
+                    <p className="text-xs text-klyp-gray/80 mt-1">
+                      Campos: {(entry.changes["fields"] as string[]).join(", ")}
+                    </p>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ol>
       </div>
     </div>
   );

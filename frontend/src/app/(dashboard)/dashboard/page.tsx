@@ -1,17 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   Building2,
   CalendarDays,
   Users,
   TrendingUp,
+  AlertTriangle,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuthStore } from "@/stores/authStore";
-import { reservationsApi } from "@/lib/api";
+import { reservationsApi, guestsApi, type DocsAlertItem } from "@/lib/api";
 import { ROLE_LABELS } from "@/types";
 import type { UserRole } from "@/types";
 
@@ -36,6 +38,7 @@ export default function DashboardPage() {
   const user = useAuthStore((state) => state.user);
   const [stats, setStats] = useState<Stats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
+  const [docsAlerts, setDocsAlerts] = useState<DocsAlertItem[]>([]);
 
   useEffect(() => {
     reservationsApi.getStats()
@@ -43,6 +46,17 @@ export default function DashboardPage() {
       .catch(() => setStats(null))
       .finally(() => setStatsLoading(false));
   }, []);
+
+  useEffect(() => {
+    guestsApi.docsAlerts(1)
+      .then((res) => setDocsAlerts(res.data))
+      .catch(() => setDocsAlerts([]));
+  }, []);
+
+  const formatShortDate = (iso: string): string => {
+    const [, month, day] = iso.split("-");
+    return `${day}/${month}`;
+  };
 
   const statCards = [
     {
@@ -89,6 +103,49 @@ export default function DashboardPage() {
           </Badge>
         )}
       </div>
+
+      {/* Banner de alerta — documentación de viajeros incompleta */}
+      {docsAlerts.length > 0 && (
+        <div className="rounded-lg border border-orange-200 bg-orange-50 p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-orange-600" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-orange-800">
+                {docsAlerts.length} reserva
+                {docsAlerts.length === 1 ? "" : "s"} con check-in inminente y
+                documentación de viajeros incompleta
+              </p>
+              <p className="mt-0.5 text-xs text-orange-700">
+                Revisa la documentación antes de la llegada para agilizar el
+                check-in.
+              </p>
+              <ul className="mt-3 space-y-1.5">
+                {docsAlerts.slice(0, 5).map((a) => (
+                  <li key={a.reservation_id}>
+                    <Link
+                      href={`/reservas/${a.reservation_id}`}
+                      className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-orange-900 hover:underline"
+                    >
+                      <span className="font-medium">{a.guest_name}</span>
+                      <span className="text-orange-700">
+                        Entrada {formatShortDate(a.check_in)}
+                      </span>
+                      <span className="text-orange-700">
+                        {a.completed_guests}/{a.num_persons} viajeros completos
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              {docsAlerts.length > 5 && (
+                <p className="mt-2 text-xs text-orange-700">
+                  y {docsAlerts.length - 5} más…
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Grid de estadísticas */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

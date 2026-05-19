@@ -10,6 +10,7 @@ from decimal import Decimal
 
 import stripe
 
+from app.core.crypto import decrypt_secret
 from app.models.reservation import Reservation
 from app.models.tenant import Tenant
 
@@ -23,7 +24,7 @@ def _get_stripe_client(tenant: Tenant) -> stripe.StripeClient:
             f"Stripe no está configurado o habilitado para '{tenant.slug}'. "
             "Configura stripe_secret_key y activa stripe_enabled desde el panel de super admin."
         )
-    return stripe.StripeClient(api_key=tenant.stripe_secret_key)
+    return stripe.StripeClient(api_key=decrypt_secret(tenant.stripe_secret_key))
 
 
 def create_checkout_session(
@@ -102,5 +103,5 @@ def verify_webhook_signature(
     return stripe.Webhook.construct_event(
         payload=payload,
         sig_header=sig_header,
-        secret=tenant.stripe_webhook_secret,
+        secret=decrypt_secret(tenant.stripe_webhook_secret),
     )

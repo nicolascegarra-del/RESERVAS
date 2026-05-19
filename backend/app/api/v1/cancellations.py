@@ -44,6 +44,7 @@ from app.schemas.cancellation import (
 )
 from app.schemas.reservation import ReservationRead
 from app.services import cancellation_service
+from app.services import history_service
 
 router = APIRouter(tags=["Cancelaciones"])
 
@@ -214,6 +215,16 @@ async def cancel_reservation(
         data=data,
         tenant_id=effective_tenant_id,
     )
+    reason = data.cancellation_reason or "Sin motivo especificado"
+    await history_service.log_reservation_event(
+        session=session,
+        reservation_id=reservation_id,
+        tenant_id=effective_tenant_id,
+        user=current_user,
+        action="cancelled",
+        description=f"Reserva cancelada. Motivo: {reason}",
+    )
+    await session.commit()
     return {
         "reservation": reservation.model_dump(mode="json"),
         "refund_order": refund_order.model_dump(mode="json"),

@@ -96,7 +96,7 @@ export function RequestChangeDialog({
                     : "border-klyp-pale text-klyp-gray hover:border-klyp-accent/50"
                 }`}
               >
-                Cambio de estado
+                Cambio de Estado
               </button>
               <button
                 onClick={() => setType("price_change")}
@@ -106,7 +106,7 @@ export function RequestChangeDialog({
                     : "border-klyp-pale text-klyp-gray hover:border-klyp-accent/50"
                 }`}
               >
-                Ajuste de precio
+                Ajuste de Precio
               </button>
             </div>
           </div>
@@ -170,7 +170,7 @@ export function RequestChangeDialog({
               onClick={() => void handleSubmit()}
               disabled={saving}
             >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enviar solicitud"}
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enviar Solicitud"}
             </Button>
           </div>
         </div>
