@@ -136,8 +136,19 @@ function CreateTenantDialog({ open, onOpenChange, onCreated }: {
   onCreated: (t: TenantSummary) => void;
 }) {
   const [form, setForm] = useState<TenantFormData>(emptyForm());
+  const [config, setConfig] = useState<ConfigFormData>(emptyConfig());
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleLogoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoFile(file);
+    setLogoPreview(URL.createObjectURL(file));
+  };
 
   const handleCreate = async () => {
     if (!form.name || !form.slug) { setError("Nombre y slug son obligatorios."); return; }
@@ -156,8 +167,38 @@ function CreateTenantDialog({ open, onOpenChange, onCreated }: {
         bank_account: form.bank_account || null,
       };
       const res = await tenantsApi.create(payload);
-      onCreated(res.data);
+      let newTenant = res.data;
+
+      // Subir logo si se seleccionó uno
+      if (logoFile) {
+        const logoRes = await tenantsApi.uploadLogo(newTenant.id, logoFile);
+        newTenant = logoRes.data;
+      }
+
+      // Aplicar config Stripe/SMTP si se rellenó algo
+      const hasStripeConfig = config.stripe_secret_key || config.stripe_webhook_secret || config.stripe_enabled;
+      const hasSmtpConfig = config.smtp_host || config.smtp_user || config.smtp_password || config.smtp_enabled;
+      if (hasStripeConfig || hasSmtpConfig) {
+        const configPayload: Record<string, unknown> = {
+          stripe_enabled: config.stripe_enabled,
+          stripe_currency: config.stripe_currency,
+          smtp_enabled: config.smtp_enabled,
+          smtp_host: config.smtp_host || null,
+          smtp_port: config.smtp_port,
+          smtp_user: config.smtp_user || null,
+          smtp_from: config.smtp_from || null,
+        };
+        if (config.stripe_secret_key) configPayload["stripe_secret_key"] = config.stripe_secret_key;
+        if (config.stripe_webhook_secret) configPayload["stripe_webhook_secret"] = config.stripe_webhook_secret;
+        if (config.smtp_password) configPayload["smtp_password"] = config.smtp_password;
+        await tenantsApi.updateConfig(newTenant.id, configPayload as Parameters<typeof tenantsApi.updateConfig>[1]);
+      }
+
+      onCreated(newTenant);
       setForm(emptyForm());
+      setConfig(emptyConfig());
+      setLogoFile(null);
+      setLogoPreview(null);
       onOpenChange(false);
     } catch (e: unknown) {
       const err = e as { response?: { data?: { detail?: { error?: { message?: string } } } } };
@@ -165,14 +206,22 @@ function CreateTenantDialog({ open, onOpenChange, onCreated }: {
     } finally { setSaving(false); }
   };
 
+  const cfgField = (key: ConfigStringKey) => ({
+    value: String(config[key]),
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
+      setConfig((p) => ({ ...p, [key]: key === "smtp_port" ? Number(e.target.value) : e.target.value })),
+  });
+
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) { setForm(emptyForm()); setError(null); } onOpenChange(v); }}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) { setForm(emptyForm()); setConfig(emptyConfig()); setError(null); } onOpenChange(v); }}>
       <DialogContent className="w-full max-w-[95vw] sm:max-w-3xl max-h-[90vh] overflow-y-auto p-0">
         {/* ── Cabecera visual ── */}
         <div className="bg-klyp-navy px-6 py-5 rounded-t-lg">
           <div className="flex items-center gap-4">
-            <div className="h-14 w-14 rounded-xl border-2 border-white/20 bg-white/10 flex items-center justify-center shrink-0">
-              <Building2 className="h-7 w-7 text-white/60" />
+            <div className="h-14 w-14 rounded-xl border-2 border-white/20 bg-white/10 flex items-center justify-center overflow-hidden shrink-0">
+              {!logoPreview && <Building2 className="h-7 w-7 text-white/60" />}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {logoPreview && <img src={logoPreview} alt="Logo" className="h-full w-full object-contain" />}
             </div>
             <div className="flex-1 min-w-0">
               <h2 className="text-white font-bold text-lg leading-tight">
@@ -187,7 +236,131 @@ function CreateTenantDialog({ open, onOpenChange, onCreated }: {
         </div>
 
         <div className="px-6 pb-6 pt-4">
-          <TenantFormFields form={form} setForm={setForm} />
+          <Tabs defaultValue="general" className="w-full">
+            <TabsList className="w-full mb-4 grid grid-cols-3 h-auto p-1">
+              <TabsTrigger value="general" className="flex items-center gap-1.5 py-2 text-xs sm:text-sm">
+                <Building2 className="h-3.5 w-3.5 shrink-0" />
+                <span>General</span>
+              </TabsTrigger>
+              <TabsTrigger value="stripe" className="flex items-center gap-1.5 py-2 text-xs sm:text-sm">
+                <CreditCard className="h-3.5 w-3.5 shrink-0" />
+                <span>Stripe</span>
+                {config.stripe_enabled && <span className="hidden sm:inline-block h-1.5 w-1.5 rounded-full bg-purple-500 ml-0.5" />}
+              </TabsTrigger>
+              <TabsTrigger value="smtp" className="flex items-center gap-1.5 py-2 text-xs sm:text-sm">
+                <Mail className="h-3.5 w-3.5 shrink-0" />
+                <span>SMTP</span>
+                {config.smtp_enabled && <span className="hidden sm:inline-block h-1.5 w-1.5 rounded-full bg-blue-500 ml-0.5" />}
+              </TabsTrigger>
+            </TabsList>
+
+            {/* ── General ── */}
+            <TabsContent value="general" className="space-y-5 mt-0">
+              {/* Logo upload */}
+              <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                <div className="h-16 w-16 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center bg-white overflow-hidden shrink-0">
+                  {!logoPreview && <Building2 className="h-6 w-6 text-gray-300" />}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {logoPreview && <img src={logoPreview} alt="Logo" className="h-full w-full object-contain" />}
+                </div>
+                <div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    className="hidden"
+                    onChange={handleLogoSelect}
+                  />
+                  <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+                    <Upload className="h-4 w-4 mr-2" />
+                    {logoFile ? "Cambiar Logo" : "Añadir Logo"}
+                  </Button>
+                  <p className="text-xs text-klyp-gray mt-1">PNG, JPEG, WebP o SVG</p>
+                </div>
+              </div>
+              <TenantFormFields form={form} setForm={setForm} />
+            </TabsContent>
+
+            {/* ── Stripe ── */}
+            <TabsContent value="stripe" className="space-y-4 mt-0">
+              <div className="flex items-center justify-between p-4 rounded-xl border-2 transition-colors" style={{
+                borderColor: config.stripe_enabled ? "rgb(147 51 234 / 0.3)" : "rgb(229 231 235)",
+                backgroundColor: config.stripe_enabled ? "rgb(250 245 255)" : "rgb(249 250 251)",
+              }}>
+                <div className="flex items-center gap-3">
+                  <div className={`h-9 w-9 rounded-lg flex items-center justify-center ${config.stripe_enabled ? "bg-purple-100" : "bg-gray-100"}`}>
+                    <CreditCard className={`h-5 w-5 ${config.stripe_enabled ? "text-purple-600" : "text-gray-400"}`} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-klyp-navy">TPV virtual (Stripe)</p>
+                    <p className="text-xs text-klyp-gray">Pagos online con tarjeta</p>
+                  </div>
+                </div>
+                <ToggleSwitch enabled={config.stripe_enabled} onChange={() => setConfig((p) => ({ ...p, stripe_enabled: !p.stripe_enabled }))} />
+              </div>
+              <div className="space-y-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Clave secreta (Secret Key)</Label>
+                  <Input type="password" {...cfgField("stripe_secret_key")} placeholder="sk_live_..." />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Webhook Secret</Label>
+                  <Input type="password" {...cfgField("stripe_webhook_secret")} placeholder="whsec_..." />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Moneda</Label>
+                  <Input {...cfgField("stripe_currency")} placeholder="EUR" maxLength={3} className="uppercase w-24" />
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* ── SMTP ── */}
+            <TabsContent value="smtp" className="space-y-4 mt-0">
+              <div className="flex items-center justify-between p-4 rounded-xl border-2 transition-colors" style={{
+                borderColor: config.smtp_enabled ? "rgb(59 130 246 / 0.3)" : "rgb(229 231 235)",
+                backgroundColor: config.smtp_enabled ? "rgb(239 246 255)" : "rgb(249 250 251)",
+              }}>
+                <div className="flex items-center gap-3">
+                  <div className={`h-9 w-9 rounded-lg flex items-center justify-center ${config.smtp_enabled ? "bg-blue-100" : "bg-gray-100"}`}>
+                    <Mail className={`h-5 w-5 ${config.smtp_enabled ? "text-blue-600" : "text-gray-400"}`} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-klyp-navy">Correo SMTP propio</p>
+                    <p className="text-xs text-klyp-gray">Emails transaccionales de esta empresa</p>
+                  </div>
+                </div>
+                <ToggleSwitch enabled={config.smtp_enabled} onChange={() => setConfig((p) => ({ ...p, smtp_enabled: !p.smtp_enabled }))} />
+              </div>
+              <div className="space-y-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Servidor (Host)</Label>
+                    <Input {...cfgField("smtp_host")} placeholder="smtp.gmail.com" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Puerto</Label>
+                    <Input type="number" {...cfgField("smtp_port")} />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Usuario</Label>
+                  <Input {...cfgField("smtp_user")} placeholder="noreply@empresa.com" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Contraseña</Label>
+                  <Input type="password" {...cfgField("smtp_password")} placeholder="Contraseña SMTP" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Email remitente (From)</Label>
+                  <Input type="email" {...cfgField("smtp_from")} placeholder="noreply@empresa.com" />
+                </div>
+              </div>
+              <div className="flex items-start gap-2.5 p-3 bg-klyp-pale rounded-lg border border-klyp-accent/20 text-xs text-klyp-gray">
+                <Info className="h-3.5 w-3.5 text-klyp-accent shrink-0 mt-0.5" />
+                <span>Si no hay SMTP propio configurado, se usará el <strong className="text-klyp-navy">SMTP global</strong> del sistema como fallback.</span>
+              </div>
+            </TabsContent>
+          </Tabs>
 
           {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
 
