@@ -9,6 +9,7 @@ services:
     volumes:
       - media_data:/app/media
     environment:
+      - TZ=Europe/Madrid
       - APP_ENV=${APP_ENV:-development}
       - APP_SECRET_KEY=${APP_SECRET_KEY:-changeme-dev-only}
       - DEBUG=${DEBUG:-true}
@@ -76,6 +77,7 @@ services:
     volumes:
       - media_data:/app/media
     environment:
+      - TZ=Europe/Madrid
       - APP_ENV=${APP_ENV:-development}
       - DATABASE_URL=postgresql://${POSTGRES_USER:-reservas}:${POSTGRES_PASSWORD:-reservas}@postgres:5432/${POSTGRES_DB:-reservas_db}
       - REDIS_URL=redis://redis:6379/0
@@ -94,6 +96,7 @@ services:
       dockerfile: Dockerfile
     command: celery -A app.core.celery_app.celery_app beat --loglevel=info --schedule /tmp/celerybeat-schedule
     environment:
+      - TZ=Europe/Madrid
       - APP_ENV=${APP_ENV:-development}
       - DATABASE_URL=postgresql://${POSTGRES_USER:-reservas}:${POSTGRES_PASSWORD:-reservas}@postgres:5432/${POSTGRES_DB:-reservas_db}
       - REDIS_URL=redis://redis:6379/0
