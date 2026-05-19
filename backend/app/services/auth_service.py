@@ -3,6 +3,8 @@ Lógica de negocio de autenticación.
 Separado del router para mantener la capa de servicio limpia y testeable.
 """
 
+import logging
+
 from fastapi import HTTPException, status
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -40,8 +42,8 @@ async def _log_access(
             )
             log_session.add(log)
             await log_session.commit()
-    except Exception:
-        pass  # nunca debe romper el flujo de autenticación
+    except Exception as e:
+        logging.getLogger(__name__).error("ACCESS LOG ERROR: %s", e, exc_info=True)
 
 
 async def login_user(
