@@ -1,6 +1,6 @@
 """Configuración de notificaciones de email por tenant."""
 
-from datetime import UTC, datetime
+from datetime import datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import Column, Text
@@ -17,4 +17,4 @@ class MailNotificationConfig(SQLModel, table=True):
     subject: str = Field(default="", max_length=500)
     body_text: str = Field(default="", sa_column=Column(Text, nullable=False, default=""))
     days_before: int | None = Field(default=None)  # Para notificaciones basadas en tiempo (días antes del check-in)
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=datetime.utcnow)

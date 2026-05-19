@@ -2,7 +2,7 @@
 Modelo Tenant — representa una empresa en el sistema multi-tenant.
 """
 
-from datetime import UTC, datetime
+from datetime import datetime
 from uuid import UUID, uuid4
 
 from sqlmodel import Field, SQLModel
@@ -15,7 +15,7 @@ class Tenant(SQLModel, table=True):
     name: str = Field(max_length=255, index=True)
     slug: str = Field(max_length=100, unique=True, index=True)
     is_active: bool = Field(default=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
     # ─── Branding personalizable por empresa ─────────────────────────────────
     brand_name: str | None = Field(default=None, max_length=255)

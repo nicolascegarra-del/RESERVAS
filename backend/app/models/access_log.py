@@ -1,6 +1,6 @@
 """Registro de accesos y autenticaciones al sistema."""
 
-from datetime import UTC, datetime
+from datetime import datetime
 from uuid import UUID, uuid4
 
 from sqlmodel import Field, SQLModel
@@ -17,4 +17,4 @@ class AccessLog(SQLModel, table=True):
     ip_address: str | None = Field(default=None, max_length=45)
     event_type: str = Field(max_length=50)   # "login_success", "login_failure", "logout"
     detail: str | None = Field(default=None, max_length=255)
-    accessed_at: datetime = Field(default_factory=lambda: datetime.now(UTC), index=True)
+    accessed_at: datetime = Field(default_factory=datetime.utcnow, index=True)

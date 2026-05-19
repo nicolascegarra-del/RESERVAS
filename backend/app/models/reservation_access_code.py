@@ -1,6 +1,6 @@
 """Código alfanumérico de acceso al torno, uno por persona de la reserva."""
 
-from datetime import UTC, datetime
+from datetime import datetime
 from uuid import UUID, uuid4
 
 from sqlmodel import Field, SQLModel
@@ -16,5 +16,5 @@ class ReservationAccessCode(SQLModel, table=True):
     code: str = Field(max_length=10)
     # Índice de persona (1-based): persona 1, 2, 3…
     person_index: int = Field(default=1, ge=1)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)

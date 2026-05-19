@@ -8,7 +8,7 @@ activo hasta el momento del check-in; la recepción puede desactivarlo.
 El valor del token se genera con secrets.token_urlsafe(32) → ~43 chars.
 """
 
-from datetime import UTC, datetime
+from datetime import datetime
 from uuid import UUID, uuid4
 
 from sqlmodel import Field, SQLModel
@@ -24,4 +24,4 @@ class GuestUploadToken(SQLModel, table=True):
     tenant_id: UUID = Field(nullable=False)
     token: str = Field(max_length=64, unique=True, index=True)
     is_active: bool = Field(default=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    created_at: datetime = Field(default_factory=datetime.utcnow)

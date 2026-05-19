@@ -5,7 +5,7 @@ Cubre PricingModel (precio base del tipo), Season (tramos de temporada)
 y ExtraPrice (precio por noche de cada extra dentro de un pricing model).
 """
 
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
@@ -56,8 +56,8 @@ class PricingModel(SQLModel, table=True):
     )
 
     currency: str = Field(default="EUR", max_length=3)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class Season(SQLModel, table=True):
@@ -98,7 +98,7 @@ class Season(SQLModel, table=True):
     )
 
     is_active: bool = Field(default=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class ExtraPrice(SQLModel, table=True):
@@ -120,4 +120,4 @@ class ExtraPrice(SQLModel, table=True):
     price_per_night: Decimal = Field(
         sa_column=Column(Numeric(10, 2), nullable=False),
     )
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    created_at: datetime = Field(default_factory=datetime.utcnow)

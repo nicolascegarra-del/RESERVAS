@@ -9,7 +9,7 @@ Estados: pending_payment → confirmed → checked_in → checked_out
 """
 
 import uuid as uuid_lib
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
 from uuid import UUID, uuid4
@@ -105,5 +105,5 @@ class Reservation(SQLModel, table=True):
     reminder_sent: bool = Field(default=False)
     stripe_session_id: str | None = Field(default=None, max_length=255)
 
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)

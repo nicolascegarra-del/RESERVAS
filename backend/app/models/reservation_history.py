@@ -1,6 +1,6 @@
 """Historial de cambios de reservas — auditoría por usuario."""
 
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -23,4 +23,4 @@ class ReservationHistory(SQLModel, table=True):
     description: str = Field(max_length=500)
     changes: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON, nullable=True))
 
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), index=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)

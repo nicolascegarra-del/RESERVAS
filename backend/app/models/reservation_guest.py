@@ -13,7 +13,7 @@ El estado del OCR (ocr_status) controla el flujo de captación:
   manual      → datos introducidos/confirmados manualmente
 """
 
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 from enum import Enum
 from uuid import UUID, uuid4
 
@@ -73,5 +73,5 @@ class ReservationGuest(SQLModel, table=True):
 
     uploaded_by: str | None = Field(default=None, max_length=20)
 
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
