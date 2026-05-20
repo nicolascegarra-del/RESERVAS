@@ -12,6 +12,7 @@ import {
   ChevronRight,
   ClipboardList,
   Mail,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
@@ -78,6 +79,11 @@ export function Sidebar() {
       label: "Devoluciones",
       href: "/devoluciones",
       icon: RotateCcw,
+    },
+    {
+      label: "Facturación",
+      href: "/facturacion",
+      icon: FileText,
     },
     {
       label: "Log de Emails",

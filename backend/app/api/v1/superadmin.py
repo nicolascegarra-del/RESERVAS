@@ -254,6 +254,12 @@ async def get_tenant_config(tenant_id: UUID, _: SuperAdminDep, session: SessionD
         smtp_password_set=bool(tenant.smtp_password),
         smtp_from=tenant.smtp_from,
         smtp_verified_at=tenant.smtp_verified_at,
+        redsys_enabled=tenant.redsys_enabled,
+        redsys_merchant_code=tenant.redsys_merchant_code,
+        redsys_terminal=tenant.redsys_terminal,
+        redsys_secret_key_set=bool(tenant.redsys_secret_key),
+        redsys_currency=tenant.redsys_currency,
+        redsys_environment=tenant.redsys_environment,
     )
 
 
@@ -294,6 +300,23 @@ async def update_tenant_config(tenant_id: UUID, data: TenantConfigUpdate, _: Sup
     if smtp_changed:
         tenant.smtp_verified_at = None
 
+    # Redsys
+    if data.redsys_enabled is not None:
+        tenant.redsys_enabled = data.redsys_enabled
+    if data.redsys_merchant_code is not None:
+        tenant.redsys_merchant_code = data.redsys_merchant_code or None
+    if data.redsys_terminal is not None:
+        tenant.redsys_terminal = data.redsys_terminal or None
+    if data.redsys_secret_key is not None:
+        tenant.redsys_secret_key = encrypt_secret(data.redsys_secret_key) if data.redsys_secret_key else None
+        # Si cambia la clave, deshabilitar hasta que se reverifique
+        if data.redsys_secret_key:
+            tenant.redsys_enabled = False
+    if data.redsys_currency is not None:
+        tenant.redsys_currency = data.redsys_currency
+    if data.redsys_environment is not None:
+        tenant.redsys_environment = data.redsys_environment
+
     session.add(tenant)
     await session.commit()
     await session.refresh(tenant)
@@ -309,6 +332,12 @@ async def update_tenant_config(tenant_id: UUID, data: TenantConfigUpdate, _: Sup
         smtp_password_set=bool(tenant.smtp_password),
         smtp_from=tenant.smtp_from,
         smtp_verified_at=tenant.smtp_verified_at,
+        redsys_enabled=tenant.redsys_enabled,
+        redsys_merchant_code=tenant.redsys_merchant_code,
+        redsys_terminal=tenant.redsys_terminal,
+        redsys_secret_key_set=bool(tenant.redsys_secret_key),
+        redsys_currency=tenant.redsys_currency,
+        redsys_environment=tenant.redsys_environment,
     )
 
 

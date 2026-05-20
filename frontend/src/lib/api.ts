@@ -122,6 +122,9 @@ export const authApi = {
 
 import type {
   MailNotificationConfig,
+  PaymentMethod,
+  ReservationPayment,
+  Invoice,
   AccommodationType,
   AccommodationTypeWithUnits,
   AccommodationUnit,
@@ -845,6 +848,84 @@ export const companyUsersApi = {
     apiClient.patch<CompanyUser>(`/api/v1/company/users/${id}`, data),
   resetPassword: (id: string, newPassword: string) =>
     apiClient.post(`/api/v1/company/users/${id}/reset-password`, { new_password: newPassword }),
+};
+
+// ─── Facturación ─────────────────────────────────────────────────────────────
+
+export const billingApi = {
+  listPaymentMethods: () =>
+    apiClient.get<PaymentMethod[]>("/api/v1/billing/payment-methods"),
+
+  createPaymentMethod: (data: {
+    name: string;
+    method_type: string;
+    config?: Record<string, string> | null;
+    is_default?: boolean;
+    sort_order?: number;
+  }) => apiClient.post<PaymentMethod>("/api/v1/billing/payment-methods", data),
+
+  updatePaymentMethod: (
+    id: string,
+    data: Partial<{
+      name: string;
+      is_active: boolean;
+      is_default: boolean;
+      config: Record<string, string> | null;
+      sort_order: number;
+    }>,
+  ) =>
+    apiClient.put<PaymentMethod>(
+      `/api/v1/billing/payment-methods/${id}`,
+      data,
+    ),
+
+  deletePaymentMethod: (id: string) =>
+    apiClient.delete(`/api/v1/billing/payment-methods/${id}`),
+
+  getReservationPayment: (reservationId: string) =>
+    apiClient.get<ReservationPayment | null>(
+      `/api/v1/billing/reservations/${reservationId}/payment`,
+    ),
+
+  createReservationPayment: (
+    reservationId: string,
+    data: { payment_method_id: string; amount: number; notes?: string },
+  ) =>
+    apiClient.post<ReservationPayment>(
+      `/api/v1/billing/reservations/${reservationId}/payment`,
+      data,
+    ),
+
+  getReservationInvoice: (reservationId: string) =>
+    apiClient.get<Invoice | null>(
+      `/api/v1/billing/reservations/${reservationId}/invoice`,
+    ),
+
+  generateInvoice: (
+    reservationId: string,
+    data: {
+      recipient_name: string;
+      recipient_nif?: string;
+      recipient_address?: string;
+      recipient_email?: string;
+    },
+  ) =>
+    apiClient.post<Invoice>(
+      `/api/v1/billing/reservations/${reservationId}/invoice`,
+      data,
+    ),
+
+  listInvoices: (params?: {
+    page?: number;
+    page_size?: number;
+    status?: string;
+  }) =>
+    apiClient.get<{
+      items: Invoice[];
+      total: number;
+      page: number;
+      pages: number;
+    }>("/api/v1/billing/invoices", { params }),
 };
 
 export const changeRequestsApi = {

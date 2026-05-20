@@ -16,6 +16,7 @@ from slowapi.errors import RateLimitExceeded
 from app.core.rate_limit import limiter
 
 from app.api.v1.access_logs import router as access_logs_router
+from app.api.v1.billing import router as billing_router
 from app.api.v1.accommodations import router as accommodations_router
 from app.api.v1.reservation_access import router as reservation_access_router
 from app.api.v1.mail_logs import router as mail_logs_router
@@ -99,6 +100,7 @@ app.include_router(superadmin_router, prefix="/api/v1")
 app.include_router(mail_logs_router, prefix="/api/v1")
 app.include_router(access_logs_router, prefix="/api/v1")
 app.include_router(webhooks_router, prefix="/api/v1")
+app.include_router(billing_router, prefix="/api/v1")
 
 
 app.mount("/media", StaticFiles(directory="/app/media"), name="media")

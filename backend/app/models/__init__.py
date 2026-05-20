@@ -1,5 +1,14 @@
 """Modelos SQLModel — importar aquí para que Alembic los detecte."""
 
+from app.models.billing import (
+    Invoice,
+    InvoiceSequence,
+    InvoiceStatus,
+    PaymentMethod,
+    PaymentMethodType,
+    PaymentStatus,
+    ReservationPayment,
+)
 from app.models.accommodation import (
     AccommodationCategory,
     AccommodationType,
@@ -29,6 +38,13 @@ from app.models.tenant import Tenant
 from app.models.user import User, UserRole
 
 __all__ = [
+    "Invoice",
+    "InvoiceSequence",
+    "InvoiceStatus",
+    "PaymentMethod",
+    "PaymentMethodType",
+    "PaymentStatus",
+    "ReservationPayment",
     "Tenant",
     "User",
     "UserRole",

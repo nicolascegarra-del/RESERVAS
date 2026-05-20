@@ -62,3 +62,12 @@ class Tenant(SQLModel, table=True):
 
     # ─── Verificación de conexión SMTP ───────────────────────────────────────
     smtp_verified_at: datetime | None = Field(default=None, nullable=True)
+
+    # ─── Configuración Redsys (por empresa) ──────────────────────────────────
+    redsys_merchant_code: str | None = Field(default=None, max_length=15)
+    redsys_terminal: str | None = Field(default=None, max_length=3)
+    # Cifrada con app.core.crypto.encrypt_secret
+    redsys_secret_key: str | None = Field(default=None, max_length=500)
+    redsys_currency: str = Field(default="978", max_length=3)
+    redsys_environment: str = Field(default="sandbox", max_length=20)
+    redsys_enabled: bool = Field(default=False)

@@ -499,3 +499,118 @@ export interface ReservationAccessCode {
   created_at: string;
   updated_at: string;
 }
+
+// ─── Facturación ─────────────────────────────────────────────────────────────
+
+export type PaymentMethodType =
+  | "cash"
+  | "bank_transfer"
+  | "tpv_manual"
+  | "redsys"
+  | "stripe";
+
+export type PaymentStatus = "pending" | "completed" | "failed" | "refunded";
+
+export type InvoiceStatus = "draft" | "issued" | "sent" | "cancelled";
+
+export interface PaymentMethod {
+  id: string;
+  tenant_id: string;
+  name: string;
+  method_type: PaymentMethodType;
+  is_active: boolean;
+  is_default: boolean;
+  config: Record<string, string> | null;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface InvoiceLine {
+  description: string;
+  quantity: number;
+  unit_price_net: string;
+  iva_rate: string;
+  iva_amount: string;
+  line_total_net: string;
+  line_total_with_iva: string;
+}
+
+export interface ReservationPayment {
+  id: string;
+  tenant_id: string;
+  reservation_id: string;
+  payment_method_id: string;
+  payment_method_name: string;
+  amount: string;
+  status: PaymentStatus;
+  gateway_transaction_id: string | null;
+  paid_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Invoice {
+  id: string;
+  tenant_id: string;
+  reservation_id: string;
+  invoice_number: string;
+  invoice_series: string;
+  invoice_year: number;
+  invoice_sequence: number;
+  status: InvoiceStatus;
+  issuer_name: string | null;
+  issuer_cif: string | null;
+  issuer_address: string | null;
+  recipient_name: string;
+  recipient_nif: string | null;
+  recipient_address: string | null;
+  recipient_email: string | null;
+  lines: InvoiceLine[];
+  base_imponible: string;
+  total_iva: string;
+  total_with_iva: string;
+  currency: string;
+  payment_method_name: string | null;
+  pdf_url: string | null;
+  issued_at: string;
+  sent_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export const PAYMENT_METHOD_TYPE_LABELS: Record<PaymentMethodType, string> = {
+  cash: "Efectivo",
+  bank_transfer: "Transferencia Bancaria",
+  tpv_manual: "TPV",
+  redsys: "Redsys",
+  stripe: "Stripe",
+};
+
+export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
+  pending: "Pendiente",
+  completed: "Cobrado",
+  failed: "Fallido",
+  refunded: "Reembolsado",
+};
+
+export const PAYMENT_STATUS_COLORS: Record<PaymentStatus, string> = {
+  pending: "bg-yellow-100 text-yellow-800",
+  completed: "bg-green-100 text-green-800",
+  failed: "bg-red-100 text-red-800",
+  refunded: "bg-gray-100 text-gray-600",
+};
+
+export const INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
+  draft: "Borrador",
+  issued: "Emitida",
+  sent: "Enviada",
+  cancelled: "Cancelada",
+};
+
+export const INVOICE_STATUS_COLORS: Record<InvoiceStatus, string> = {
+  draft: "bg-gray-100 text-gray-600",
+  issued: "bg-blue-100 text-blue-800",
+  sent: "bg-green-100 text-green-800",
+  cancelled: "bg-red-100 text-red-800",
+};

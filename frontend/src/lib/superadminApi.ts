@@ -37,6 +37,13 @@ export interface TenantConfig {
   smtp_password_set: boolean;
   smtp_from: string | null;
   smtp_verified_at: string | null;
+  // Redsys
+  redsys_enabled: boolean;
+  redsys_merchant_code: string | null;
+  redsys_terminal: string | null;
+  redsys_secret_key_set: boolean;
+  redsys_currency: string;
+  redsys_environment: string;
 }
 
 export interface AdminUser {
@@ -98,6 +105,7 @@ export const tenantsApi = {
     stripe_secret_key?: string;
     stripe_webhook_secret?: string;
     smtp_password?: string;
+    redsys_secret_key?: string;
   }>) => client.patch<TenantConfig>(`/api/v1/superadmin/tenants/${id}/config`, data),
   testSMTP: (id: string) => client.post<{ verified_at: string }>(`/api/v1/superadmin/tenants/${id}/test-smtp`),
 };

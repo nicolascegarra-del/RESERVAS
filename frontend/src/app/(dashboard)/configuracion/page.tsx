@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Plus, Loader2, Paintbrush, ShieldAlert, Bell, ChevronDown, ChevronUp, Save, Check, Users, Pencil, PauseCircle, PlayCircle, UserPlus, UserX } from "lucide-react";
+import {
+  Plus, Loader2, Paintbrush, ShieldAlert, Bell, ChevronDown, ChevronUp,
+  Save, Check, Users, Pencil, PauseCircle, PlayCircle, UserPlus, UserX,
+  CreditCard, Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,9 +19,11 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CancellationPolicyCard } from "@/components/cancellations/CancellationPolicyCard";
 import { BrandingEditor } from "@/components/branding/BrandingEditor";
-import { cancellationsApi, settingsApi, companyUsersApi, type CompanyUser, type TenantLimits } from "@/lib/api";
+import { cancellationsApi, settingsApi, companyUsersApi, billingApi, type CompanyUser, type TenantLimits } from "@/lib/api";
 import { extractApiErrorMessage } from "@/lib/utils";
-import type { CancellationPolicy, MailNotificationConfig } from "@/types";
+import { useAuthStore } from "@/stores/authStore";
+import type { CancellationPolicy, MailNotificationConfig, PaymentMethod, PaymentMethodType } from "@/types";
+import { PAYMENT_METHOD_TYPE_LABELS as METHOD_LABELS } from "@/types";
 
 // ─── Formulario de nueva política ─────────────────────────────────────────────
 
@@ -904,13 +910,361 @@ function UsuariosTab() {
   );
 }
 
+// ─── Tab: Métodos de Pago ─────────────────────────────────────────────────────
+
+const MANUAL_METHOD_TYPES: { value: PaymentMethodType; label: string }[] = [
+  { value: "cash", label: "Efectivo" },
+  { value: "bank_transfer", label: "Transferencia Bancaria" },
+  { value: "tpv_manual", label: "TPV (manual)" },
+];
+
+interface CreateMethodForm {
+  name: string;
+  method_type: PaymentMethodType;
+  iban: string;
+  bank_name: string;
+  is_default: boolean;
+}
+
+const DEFAULT_METHOD_FORM: CreateMethodForm = {
+  name: "",
+  method_type: "cash",
+  iban: "",
+  bank_name: "",
+  is_default: false,
+};
+
+function CreateMethodDialog({
+  open,
+  onOpenChange,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCreated: (method: PaymentMethod) => void;
+}) {
+  const [form, setForm] = useState<CreateMethodForm>(DEFAULT_METHOD_FORM);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleCreate = async () => {
+    if (!form.name.trim()) { setError("El nombre es obligatorio."); return; }
+    setSaving(true); setError(null);
+    try {
+      const config: Record<string, string> | null =
+        form.method_type === "bank_transfer" && (form.iban || form.bank_name)
+          ? { iban: form.iban, bank_name: form.bank_name }
+          : null;
+      const res = await billingApi.createPaymentMethod({
+        name: form.name.trim(),
+        method_type: form.method_type,
+        config,
+        is_default: form.is_default,
+      });
+      onCreated(res.data);
+      setForm(DEFAULT_METHOD_FORM);
+      onOpenChange(false);
+    } catch (e) {
+      setError(extractApiErrorMessage(e));
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-klyp-navy">Nuevo método de pago</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <Label>Nombre *</Label>
+            <Input
+              placeholder="Ej: Caja principal, BBVA..."
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              maxLength={200}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Tipo</Label>
+            <select
+              value={form.method_type}
+              onChange={(e) => setForm({ ...form, method_type: e.target.value as PaymentMethodType })}
+              className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              {MANUAL_METHOD_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+          </div>
+          {form.method_type === "bank_transfer" && (
+            <div className="space-y-3 rounded-lg border border-klyp-pale p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-klyp-gray">
+                Datos bancarios
+              </p>
+              <div className="space-y-1.5">
+                <Label>IBAN</Label>
+                <Input
+                  placeholder="ES12 3456 7890 1234 5678 9012"
+                  value={form.iban}
+                  onChange={(e) => setForm({ ...form, iban: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Nombre del banco</Label>
+                <Input
+                  placeholder="BBVA, Santander..."
+                  value={form.bank_name}
+                  onChange={(e) => setForm({ ...form, bank_name: e.target.value })}
+                />
+              </div>
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="is-default"
+              checked={form.is_default}
+              onChange={(e) => setForm({ ...form, is_default: e.target.checked })}
+              className="h-4 w-4"
+            />
+            <Label htmlFor="is-default">Método por defecto</Label>
+          </div>
+          {error && <p className="text-sm text-red-600">{error}</p>}
+        </div>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={() => void handleCreate()}
+            disabled={saving}
+            className="bg-klyp-accent hover:bg-klyp-accent/90 text-white min-h-[44px]"
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Crear método"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function MetodosPagoTab() {
+  const user = useAuthStore((s) => s.user);
+  const canManage = user?.role === "company_admin" || user?.role === "super_admin";
+
+  const [methods, setMethods] = useState<PaymentMethod[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [actionPending, setActionPending] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<PaymentMethod | null>(null);
+
+  const fetchMethods = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await billingApi.listPaymentMethods();
+      setMethods(res.data);
+    } catch {
+      // silencioso
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void fetchMethods(); }, [fetchMethods]);
+
+  const handleToggleActive = async (method: PaymentMethod) => {
+    setActionPending(method.id);
+    try {
+      const res = await billingApi.updatePaymentMethod(method.id, {
+        is_active: !method.is_active,
+      });
+      setMethods((prev) => prev.map((m) => (m.id === method.id ? res.data : m)));
+    } catch {
+      // silencioso
+    } finally { setActionPending(null); }
+  };
+
+  const handleToggleDefault = async (method: PaymentMethod) => {
+    setActionPending(method.id);
+    try {
+      const res = await billingApi.updatePaymentMethod(method.id, {
+        is_default: !method.is_default,
+      });
+      setMethods((prev) => prev.map((m) => (m.id === method.id ? res.data : m)));
+    } catch {
+      // silencioso
+    } finally { setActionPending(null); }
+  };
+
+  const handleDelete = async (method: PaymentMethod) => {
+    setActionPending(method.id);
+    try {
+      await billingApi.deletePaymentMethod(method.id);
+      setMethods((prev) => prev.filter((m) => m.id !== method.id));
+    } catch {
+      // silencioso
+    } finally { setActionPending(null); setDeleteConfirm(null); }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-klyp-gray">
+          Configura los métodos de pago disponibles para registrar cobros de reservas.
+          Stripe y Redsys se configuran desde el panel de superadmin.
+        </p>
+        {canManage && (
+          <Button
+            onClick={() => setShowCreate(true)}
+            className="bg-klyp-accent hover:bg-klyp-accent/90 text-white min-h-[44px]"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Nuevo método
+          </Button>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="space-y-2">
+          {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-14 w-full rounded-lg" />)}
+        </div>
+      ) : methods.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-gray-200 px-8 py-12 text-center">
+          <CreditCard className="h-8 w-8 mx-auto mb-2 opacity-30" />
+          <p className="text-sm text-klyp-gray">No hay métodos de pago configurados.</p>
+          {canManage && (
+            <Button
+              className="mt-4 bg-klyp-accent hover:bg-klyp-accent/90 text-white min-h-[44px]"
+              onClick={() => setShowCreate(true)}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Crear primer método
+            </Button>
+          )}
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-gray-200">
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-klyp-gray">Nombre</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-klyp-gray">Tipo</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-klyp-gray hidden sm:table-cell">Por defecto</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-klyp-gray">Estado</th>
+                {canManage && (
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-klyp-gray">Acciones</th>
+                )}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {methods.map((method) => (
+                <tr key={method.id} className={`hover:bg-gray-50 transition-colors ${!method.is_active ? "opacity-50" : ""}`}>
+                  <td className="px-4 py-3 font-medium text-klyp-navy">{method.name}</td>
+                  <td className="px-4 py-3">
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">
+                      {METHOD_LABELS[method.method_type] ?? method.method_type}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 hidden sm:table-cell">
+                    {method.is_default && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
+                        Defecto
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                      method.is_active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                    }`}>
+                      {method.is_active ? "Activo" : "Inactivo"}
+                    </span>
+                  </td>
+                  {canManage && (
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2 text-xs text-klyp-gray"
+                          disabled={actionPending === method.id}
+                          title={method.is_active ? "Desactivar" : "Activar"}
+                          onClick={() => void handleToggleActive(method)}
+                        >
+                          {method.is_active ? <PauseCircle className="h-4 w-4 text-amber-500" /> : <PlayCircle className="h-4 w-4 text-green-500" />}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2 text-xs"
+                          disabled={actionPending === method.id}
+                          title={method.is_default ? "Quitar como defecto" : "Poner como defecto"}
+                          onClick={() => void handleToggleDefault(method)}
+                        >
+                          <Check className={`h-4 w-4 ${method.is_default ? "text-green-600" : "text-gray-300"}`} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2"
+                          disabled={actionPending === method.id}
+                          title="Eliminar"
+                          onClick={() => setDeleteConfirm(method)}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-400" />
+                        </Button>
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <CreateMethodDialog
+        open={showCreate}
+        onOpenChange={setShowCreate}
+        onCreated={(m) => setMethods((prev) => [...prev, m])}
+      />
+
+      {deleteConfirm && (
+        <Dialog open={true} onOpenChange={() => setDeleteConfirm(null)}>
+          <DialogContent className="sm:max-w-xs">
+            <DialogHeader>
+              <DialogTitle>¿Eliminar método de pago?</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-klyp-gray py-2">
+              Se eliminará <strong>{deleteConfirm.name}</strong>. Esta acción no se puede deshacer.
+            </p>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Cancelar</Button>
+              <Button
+                variant="destructive"
+                disabled={actionPending === deleteConfirm.id}
+                onClick={() => void handleDelete(deleteConfirm)}
+              >
+                {actionPending === deleteConfirm.id
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : "Eliminar"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
+  );
+}
+
 // ─── Página de configuración ──────────────────────────────────────────────────
 
-type Tab = "cancelaciones" | "apariencia" | "mail" | "usuarios";
+type Tab = "cancelaciones" | "apariencia" | "mail" | "usuarios" | "metodos-pago";
 
 const TABS: { id: Tab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "apariencia", label: "Apariencia", icon: Paintbrush },
   { id: "usuarios", label: "Usuarios", icon: Users },
+  { id: "metodos-pago", label: "Métodos de Pago", icon: CreditCard },
   { id: "mail", label: "Mail Notificaciones", icon: Bell },
   { id: "cancelaciones", label: "Cancelaciones", icon: ShieldAlert },
 ];
@@ -958,6 +1312,7 @@ export default function ConfiguracionPage() {
         {activeTab === "apariencia" && <BrandingEditor />}
         {activeTab === "mail" && <MailNotificacionesTab />}
         {activeTab === "usuarios" && <UsuariosTab />}
+        {activeTab === "metodos-pago" && <MetodosPagoTab />}
       </div>
     </div>
   );

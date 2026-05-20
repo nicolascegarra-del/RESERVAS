@@ -85,6 +85,13 @@ class TenantConfigRead(BaseModel):
     smtp_password_set: bool
     smtp_from: str | None
     smtp_verified_at: datetime | None = None
+    # Redsys
+    redsys_enabled: bool = False
+    redsys_merchant_code: str | None = None
+    redsys_terminal: str | None = None
+    redsys_secret_key_set: bool = False
+    redsys_currency: str = "978"
+    redsys_environment: str = "sandbox"
 
     model_config = {"from_attributes": True}
 
@@ -100,6 +107,13 @@ class TenantConfigUpdate(BaseModel):
     smtp_user: str | None = None
     smtp_password: str | None = None
     smtp_from: str | None = None
+    # Redsys
+    redsys_enabled: bool | None = None
+    redsys_merchant_code: str | None = Field(default=None, max_length=15)
+    redsys_terminal: str | None = Field(default=None, max_length=3)
+    redsys_secret_key: str | None = None
+    redsys_currency: str | None = Field(default=None, max_length=3)
+    redsys_environment: str | None = Field(default=None, max_length=20)
 
 
 # ─── Usuarios ─────────────────────────────────────────────────────────────────

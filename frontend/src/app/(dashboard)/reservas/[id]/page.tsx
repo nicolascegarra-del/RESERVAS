@@ -2,13 +2,20 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ChevronLeft, Loader2, Save, Pencil, X, History, User, Clock, Users, ShieldCheck } from "lucide-react";
+import {
+  ChevronLeft, Loader2, Save, Pencil, X, History, Users,
+  ShieldCheck, FileText, CreditCard, User, Clock,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { ReservationStatusBadge } from "@/components/reservations/ReservationStatusBadge";
 import { PriceBreakdown } from "@/components/reservations/PriceBreakdown";
 import { CancelReservationDialog } from "@/components/reservations/CancelReservationDialog";
@@ -16,9 +23,17 @@ import { RequestChangeDialog } from "@/components/reservations/RequestChangeDial
 import { GuestForm, type GuestFormValues } from "@/components/reservations/GuestForm";
 import { GuestDocsTab } from "@/components/reservations/GuestDocsTab";
 import { VehiclesAndAccessTab } from "@/components/reservations/VehiclesAndAccessTab";
-import { reservationsApi } from "@/lib/api";
+import { reservationsApi, billingApi } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
-import type { Reservation, ReservationHistoryEntry, ReservationStatus } from "@/types";
+import { extractApiErrorMessage } from "@/lib/utils";
+import type {
+  Reservation, ReservationHistoryEntry, ReservationStatus,
+  PaymentMethod, ReservationPayment, Invoice,
+} from "@/types";
+import {
+  PAYMENT_STATUS_LABELS, PAYMENT_STATUS_COLORS,
+  INVOICE_STATUS_LABELS, INVOICE_STATUS_COLORS,
+} from "@/types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -133,6 +148,32 @@ export default function ReservaDetailPage() {
   // Diálogo de solicitud de cambio (recepcionista)
   const [showRequestChange, setShowRequestChange] = useState(false);
 
+  // Pago
+  const [payment, setPayment] = useState<ReservationPayment | null>(null);
+  const [paymentLoading, setPaymentLoading] = useState(true);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [paymentForm, setPaymentForm] = useState({
+    payment_method_id: "",
+    amount: "",
+    notes: "",
+  });
+  const [paymentSaving, setPaymentSaving] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+
+  // Factura
+  const [invoice, setInvoice] = useState<Invoice | null>(null);
+  const [invoiceLoading, setInvoiceLoading] = useState(true);
+  const [showInvoiceDialog, setShowInvoiceDialog] = useState(false);
+  const [invoiceForm, setInvoiceForm] = useState({
+    recipient_name: "",
+    recipient_nif: "",
+    recipient_address: "",
+    recipient_email: "",
+  });
+  const [invoiceSaving, setInvoiceSaving] = useState(false);
+  const [invoiceError, setInvoiceError] = useState<string | null>(null);
+
   // Edición inline de datos del huésped
   const [isEditingGuest, setIsEditingGuest] = useState(false);
   const [isSavingGuest, setIsSavingGuest] = useState(false);
@@ -169,6 +210,114 @@ export default function ReservaDetailPage() {
   useEffect(() => {
     void fetchReservation();
   }, [fetchReservation]);
+
+  // Cargar pago e factura en paralelo cuando la reserva está disponible
+  useEffect(() => {
+    if (!reservation) return;
+
+    const loadBillingData = async () => {
+      setPaymentLoading(true);
+      setInvoiceLoading(true);
+      try {
+        const [paymentRes, invoiceRes] = await Promise.allSettled([
+          billingApi.getReservationPayment(reservation.id),
+          billingApi.getReservationInvoice(reservation.id),
+        ]);
+        if (paymentRes.status === "fulfilled") {
+          setPayment(paymentRes.value.data ?? null);
+        }
+        if (invoiceRes.status === "fulfilled") {
+          setInvoice(invoiceRes.value.data ?? null);
+        }
+      } finally {
+        setPaymentLoading(false);
+        setInvoiceLoading(false);
+      }
+    };
+
+    void loadBillingData();
+  }, [reservation?.id]);
+
+  const handleOpenPaymentDialog = async () => {
+    try {
+      const res = await billingApi.listPaymentMethods();
+      setPaymentMethods(res.data.filter((m) => m.is_active));
+      const defaultMethod = res.data.find((m) => m.is_active && m.is_default);
+      setPaymentForm({
+        payment_method_id: defaultMethod?.id ?? (res.data[0]?.id ?? ""),
+        amount: reservation ? parseFloat(reservation.total_with_iva).toFixed(2) : "",
+        notes: "",
+      });
+    } catch {
+      // silencioso — el diálogo mostrará lista vacía
+    }
+    setShowPaymentDialog(true);
+  };
+
+  const handleCreatePayment = async () => {
+    if (!reservation || !paymentForm.payment_method_id) {
+      setPaymentError("Selecciona un método de pago.");
+      return;
+    }
+    setPaymentSaving(true);
+    setPaymentError(null);
+    try {
+      const res = await billingApi.createReservationPayment(reservation.id, {
+        payment_method_id: paymentForm.payment_method_id,
+        amount: parseFloat(paymentForm.amount),
+        notes: paymentForm.notes || undefined,
+      });
+      setPayment(res.data);
+      setShowPaymentDialog(false);
+    } catch (e) {
+      setPaymentError(extractApiErrorMessage(e));
+    } finally {
+      setPaymentSaving(false);
+    }
+  };
+
+  const handleOpenInvoiceDialog = () => {
+    setInvoiceForm({
+      recipient_name: reservation?.guest_name ?? "",
+      recipient_nif: "",
+      recipient_address: reservation?.guest_address
+        ? [
+            reservation.guest_address,
+            reservation.guest_postal_code,
+            reservation.guest_city,
+            reservation.guest_country,
+          ]
+            .filter(Boolean)
+            .join(", ")
+        : "",
+      recipient_email: reservation?.guest_email ?? "",
+    });
+    setInvoiceError(null);
+    setShowInvoiceDialog(true);
+  };
+
+  const handleGenerateInvoice = async () => {
+    if (!reservation || !invoiceForm.recipient_name.trim()) {
+      setInvoiceError("El nombre del receptor es obligatorio.");
+      return;
+    }
+    setInvoiceSaving(true);
+    setInvoiceError(null);
+    try {
+      const res = await billingApi.generateInvoice(reservation.id, {
+        recipient_name: invoiceForm.recipient_name.trim(),
+        recipient_nif: invoiceForm.recipient_nif || undefined,
+        recipient_address: invoiceForm.recipient_address || undefined,
+        recipient_email: invoiceForm.recipient_email || undefined,
+      });
+      setInvoice(res.data);
+      setShowInvoiceDialog(false);
+    } catch (e) {
+      setInvoiceError(extractApiErrorMessage(e));
+    } finally {
+      setInvoiceSaving(false);
+    }
+  };
 
   const handleSaveNotes = async () => {
     if (!reservation) return;
@@ -614,6 +763,301 @@ export default function ReservaDetailPage() {
               />
             </CardContent>
           </Card>
+
+          {/* ── Card Pago ─────────────────────────────────────────────── */}
+          <Card className="border-klyp-pale">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base text-klyp-navy flex items-center gap-2">
+                  <CreditCard className="h-4 w-4" />
+                  Pago
+                </CardTitle>
+                {!payment && !paymentLoading && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs border-klyp-accent text-klyp-accent hover:bg-klyp-accent/10"
+                    onClick={() => void handleOpenPaymentDialog()}
+                  >
+                    Registrar pago
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {paymentLoading ? (
+                <Skeleton className="h-12 w-full rounded" />
+              ) : payment ? (
+                <dl className="space-y-2 text-sm">
+                  <div className="flex justify-between items-center">
+                    <dt className="text-klyp-gray">Método</dt>
+                    <dd className="font-medium text-klyp-navy">{payment.payment_method_name}</dd>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <dt className="text-klyp-gray">Importe</dt>
+                    <dd className="font-semibold text-klyp-navy">
+                      {parseFloat(payment.amount).toLocaleString("es-ES", {
+                        style: "currency",
+                        currency: "EUR",
+                      })}
+                    </dd>
+                  </div>
+                  {payment.paid_at && (
+                    <div className="flex justify-between items-center">
+                      <dt className="text-klyp-gray">Fecha</dt>
+                      <dd className="text-klyp-text-dark text-xs">
+                        {new Date(payment.paid_at).toLocaleString("es-ES", {
+                          day: "2-digit", month: "2-digit", year: "numeric",
+                          hour: "2-digit", minute: "2-digit",
+                        })}
+                      </dd>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center">
+                    <dt className="text-klyp-gray">Estado</dt>
+                    <dd>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${PAYMENT_STATUS_COLORS[payment.status]}`}>
+                        {PAYMENT_STATUS_LABELS[payment.status]}
+                      </span>
+                    </dd>
+                  </div>
+                </dl>
+              ) : (
+                <p className="text-sm text-klyp-gray text-center py-2">
+                  Sin registro de pago
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* ── Card Factura ───────────────────────────────────────────── */}
+          <Card className="border-klyp-pale">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base text-klyp-navy flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Factura
+                </CardTitle>
+                {!invoice && !invoiceLoading && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs border-klyp-accent text-klyp-accent hover:bg-klyp-accent/10"
+                    onClick={handleOpenInvoiceDialog}
+                  >
+                    Emitir factura
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {invoiceLoading ? (
+                <Skeleton className="h-24 w-full rounded" />
+              ) : invoice ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg font-bold text-klyp-navy font-mono">
+                      {invoice.invoice_number}
+                    </span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${INVOICE_STATUS_COLORS[invoice.status]}`}>
+                      {INVOICE_STATUS_LABELS[invoice.status]}
+                    </span>
+                  </div>
+                  <p className="text-xs text-klyp-gray">
+                    Emitida el{" "}
+                    {new Date(invoice.issued_at).toLocaleDateString("es-ES", {
+                      day: "2-digit", month: "2-digit", year: "numeric",
+                    })}
+                  </p>
+                  <p className="text-sm font-medium text-klyp-text-dark">
+                    {invoice.recipient_name}
+                    {invoice.recipient_nif && (
+                      <span className="ml-1 text-xs text-klyp-gray">({invoice.recipient_nif})</span>
+                    )}
+                  </p>
+                  {/* Desglose de líneas */}
+                  {invoice.lines.length > 0 && (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-gray-100">
+                            <th className="text-left py-1 text-klyp-gray font-medium">Concepto</th>
+                            <th className="text-right py-1 text-klyp-gray font-medium">Base</th>
+                            <th className="text-right py-1 text-klyp-gray font-medium">IVA</th>
+                            <th className="text-right py-1 text-klyp-gray font-medium">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {invoice.lines.map((line, i) => (
+                            <tr key={i} className="border-b border-gray-50">
+                              <td className="py-1 text-klyp-text-dark">{line.description}</td>
+                              <td className="py-1 text-right text-klyp-text-dark">
+                                {parseFloat(line.line_total_net).toLocaleString("es-ES", { style: "currency", currency: "EUR" })}
+                              </td>
+                              <td className="py-1 text-right text-klyp-gray">
+                                {line.iva_rate}%
+                              </td>
+                              <td className="py-1 text-right font-medium text-klyp-navy">
+                                {parseFloat(line.line_total_with_iva).toLocaleString("es-ES", { style: "currency", currency: "EUR" })}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t border-gray-200">
+                            <td colSpan={2} className="py-1 text-klyp-gray">Base imponible</td>
+                            <td />
+                            <td className="py-1 text-right font-medium">
+                              {parseFloat(invoice.base_imponible).toLocaleString("es-ES", { style: "currency", currency: "EUR" })}
+                            </td>
+                          </tr>
+                          <tr>
+                            <td colSpan={2} className="py-1 text-klyp-gray">IVA</td>
+                            <td />
+                            <td className="py-1 text-right font-medium">
+                              {parseFloat(invoice.total_iva).toLocaleString("es-ES", { style: "currency", currency: "EUR" })}
+                            </td>
+                          </tr>
+                          <tr>
+                            <td colSpan={2} className="py-1.5 font-semibold text-klyp-navy">Total con IVA</td>
+                            <td />
+                            <td className="py-1.5 text-right font-bold text-klyp-navy">
+                              {parseFloat(invoice.total_with_iva).toLocaleString("es-ES", { style: "currency", currency: "EUR" })}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-klyp-gray text-center py-2">
+                  Sin factura emitida
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* ── Dialogo: Registrar Pago ────────────────────────────────── */}
+          <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+            <DialogContent className="sm:max-w-sm">
+              <DialogHeader>
+                <DialogTitle className="text-klyp-navy">Registrar pago</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="space-y-1.5">
+                  <Label>Método de pago *</Label>
+                  {paymentMethods.length === 0 ? (
+                    <p className="text-sm text-amber-600 bg-amber-50 rounded px-3 py-2">
+                      No hay métodos de pago activos. Configúralos en Configuración → Métodos de Pago.
+                    </p>
+                  ) : (
+                    <select
+                      value={paymentForm.payment_method_id}
+                      onChange={(e) => setPaymentForm((p) => ({ ...p, payment_method_id: e.target.value }))}
+                      className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      {paymentMethods.map((m) => (
+                        <option key={m.id} value={m.id}>{m.name}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Importe (€) *</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={paymentForm.amount}
+                    onChange={(e) => setPaymentForm((p) => ({ ...p, amount: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Notas <span className="text-klyp-gray font-normal">(opcional)</span></Label>
+                  <Textarea
+                    rows={2}
+                    value={paymentForm.notes}
+                    onChange={(e) => setPaymentForm((p) => ({ ...p, notes: e.target.value }))}
+                    placeholder="Referencia, observaciones..."
+                  />
+                </div>
+                {paymentError && <p className="text-sm text-red-600">{paymentError}</p>}
+              </div>
+              <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={() => setShowPaymentDialog(false)} disabled={paymentSaving}>
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={() => void handleCreatePayment()}
+                  disabled={paymentSaving || paymentMethods.length === 0}
+                  className="bg-klyp-accent hover:bg-klyp-accent/90 text-white min-h-[44px]"
+                >
+                  {paymentSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Registrar pago"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* ── Dialogo: Emitir Factura ────────────────────────────────── */}
+          <Dialog open={showInvoiceDialog} onOpenChange={setShowInvoiceDialog}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle className="text-klyp-navy">Emitir factura</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-xs text-blue-700">
+                  La factura refleja el estado actual de la reserva incluyendo todos los extras añadidos durante la estancia.
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Nombre / Razón social *</Label>
+                  <Input
+                    value={invoiceForm.recipient_name}
+                    onChange={(e) => setInvoiceForm((p) => ({ ...p, recipient_name: e.target.value }))}
+                    placeholder="Nombre completo o razón social"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>NIF / CIF <span className="text-klyp-gray font-normal">(opcional)</span></Label>
+                  <Input
+                    value={invoiceForm.recipient_nif}
+                    onChange={(e) => setInvoiceForm((p) => ({ ...p, recipient_nif: e.target.value }))}
+                    placeholder="12345678A o B12345678"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Dirección <span className="text-klyp-gray font-normal">(opcional)</span></Label>
+                  <Input
+                    value={invoiceForm.recipient_address}
+                    onChange={(e) => setInvoiceForm((p) => ({ ...p, recipient_address: e.target.value }))}
+                    placeholder="Calle, número, código postal, ciudad"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Email <span className="text-klyp-gray font-normal">(para envío, no aparece en la factura)</span></Label>
+                  <Input
+                    type="email"
+                    value={invoiceForm.recipient_email}
+                    onChange={(e) => setInvoiceForm((p) => ({ ...p, recipient_email: e.target.value }))}
+                    placeholder="cliente@ejemplo.com"
+                  />
+                </div>
+                {invoiceError && <p className="text-sm text-red-600">{invoiceError}</p>}
+              </div>
+              <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={() => setShowInvoiceDialog(false)} disabled={invoiceSaving}>
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={() => void handleGenerateInvoice()}
+                  disabled={invoiceSaving}
+                  className="bg-klyp-accent hover:bg-klyp-accent/90 text-white min-h-[44px]"
+                >
+                  {invoiceSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Emitir factura"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           {/* Acciones de estado */}
           {(statusActions.length > 0 || canCancel) && (
