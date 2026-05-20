@@ -15,6 +15,7 @@ interface AuthState {
   isAuthenticated: boolean;
   /** Tenant seleccionado por el super_admin para operar. null = no seleccionado */
   selectedTenantId: string | null;
+  selectedTenantName: string | null;
 }
 
 interface AuthActions {
@@ -22,6 +23,7 @@ interface AuthActions {
   setAccessToken: (accessToken: string) => void;
   clearAuth: () => void;
   setSelectedTenantId: (tenantId: string | null) => void;
+  setSelectedTenant: (tenantId: string | null, tenantName: string | null) => void;
 }
 
 type AuthStore = AuthState & AuthActions;
@@ -32,6 +34,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
   accessToken: null,
   isAuthenticated: false,
   selectedTenantId: null,
+  selectedTenantName: null,
 
   // Establecer usuario y token tras login exitoso
   setAuth: (user, accessToken) =>
@@ -47,8 +50,12 @@ export const useAuthStore = create<AuthStore>((set) => ({
       accessToken: null,
       isAuthenticated: false,
       selectedTenantId: null,
+      selectedTenantName: null,
     }),
 
-  // Seleccionar tenant para super_admin
-  setSelectedTenantId: (tenantId) => set({ selectedTenantId: tenantId }),
+  // Seleccionar tenant para super_admin (legacy — sin nombre)
+  setSelectedTenantId: (tenantId) => set({ selectedTenantId: tenantId, selectedTenantName: null }),
+
+  // Seleccionar tenant con nombre para mostrar en el banner de impersonación
+  setSelectedTenant: (tenantId, tenantName) => set({ selectedTenantId: tenantId, selectedTenantName: tenantName }),
 }));

@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
   Plus, Pencil, Trash2, Users, Building2, Loader2,
   PauseCircle, PlayCircle, ChevronUp, ChevronDown, SlidersHorizontal,
-  Upload, AlertTriangle, CreditCard, Mail, Info,
+  Upload, AlertTriangle, CreditCard, Mail, Info, LogIn,
 } from "lucide-react";
+import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -855,6 +857,9 @@ const DEFAULT_COLS_EMPRESAS = new Set<ColKey>(ALL_COLS.map((c) => c.key));
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 export default function EmpresasPage() {
+  const router = useRouter();
+  const { setSelectedTenant } = useAuthStore();
+
   const [tenants, setTenants] = useState<TenantSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -1080,6 +1085,13 @@ export default function EmpresasPage() {
                   )}
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
+                      <Button
+                        variant="ghost" size="sm" className="h-8 w-8 p-0" title="Acceder como empresa"
+                        onClick={() => { setSelectedTenant(t.id, t.name); router.push("/dashboard"); }}
+                        disabled={!t.is_active}
+                      >
+                        <LogIn className="h-4 w-4 text-klyp-accent" />
+                      </Button>
                       <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Gestionar usuarios" onClick={() => setUsersTenant(t)}>
                         <Users className="h-4 w-4 text-klyp-gray" />
                       </Button>
