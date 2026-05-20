@@ -288,7 +288,7 @@ export default function TenantConfigPage() {
           </div>
           <div className="space-y-1.5">
             <Label>
-              Clave secreta SHA256{" "}
+              Clave secreta (HMAC-SHA512){" "}
               <span className="text-klyp-gray font-normal">
                 {config?.redsys_secret_key_set
                   ? "(configurada — dejar vacío para mantener)"
@@ -300,6 +300,9 @@ export default function TenantConfigPage() {
               onChange={setRedsysKey}
               placeholder="sq7HjrUOBfKmC576ILgskD5srU870gJ7..."
             />
+            <p className="text-xs text-amber-600">
+              Al cambiar la clave, Redsys se deshabilitará automáticamente hasta que la reactives manualmente.
+            </p>
           </div>
           <div className="space-y-1.5">
             <Label>Moneda (ISO 4217 numérico)</Label>
@@ -328,6 +331,15 @@ export default function TenantConfigPage() {
               {" · "}Producción:{" "}
               <code className="bg-gray-100 px-1 rounded">sis.redsys.es</code>
             </p>
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label>URL de notificación IPN</Label>
+            <p className="text-xs text-klyp-gray mb-1">
+              Configura esta URL en el portal de Redsys como &quot;URL de notificación&quot; (Ds_Merchant_MerchantURL):
+            </p>
+            <code className="block bg-gray-50 border border-gray-200 rounded px-3 py-2 text-xs font-mono text-klyp-navy break-all">
+              {process.env["NEXT_PUBLIC_API_URL"] ?? ""}/api/v1/redsys/notification
+            </code>
           </div>
         </div>
 

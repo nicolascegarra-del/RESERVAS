@@ -19,6 +19,7 @@ from app.core.crypto import decrypt_secret, encrypt_secret
 from app.core.database import get_session
 from app.core.dependencies import require_role
 from app.core.security import hash_password, verify_password
+from app.models.billing import PaymentMethod, PaymentMethodType
 from app.models.role_permission import PERMISSION_DEFAULTS, PERMISSION_LABELS, RolePermission
 from app.models.system_settings import SystemSettings
 from app.models.tenant import Tenant
@@ -318,6 +319,26 @@ async def update_tenant_config(tenant_id: UUID, data: TenantConfigUpdate, _: Sup
         tenant.redsys_environment = data.redsys_environment
 
     session.add(tenant)
+
+    # Auto-crear método de pago Redsys si se activa y aún no existe
+    if tenant.redsys_enabled:
+        existing_pm = await session.exec(
+            select(PaymentMethod).where(
+                PaymentMethod.tenant_id == tenant_id,
+                PaymentMethod.method_type == PaymentMethodType.redsys,
+            )
+        )
+        if not existing_pm.first():
+            session.add(PaymentMethod(
+                tenant_id=tenant_id,
+                name="Redsys TPV Virtual",
+                method_type=PaymentMethodType.redsys,
+                is_active=True,
+                is_default=False,
+                sort_order=10,
+                created_at=datetime.utcnow(),
+            ))
+
     await session.commit()
     await session.refresh(tenant)
     return TenantConfigRead(
