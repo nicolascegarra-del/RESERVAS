@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Plus, Pencil, Trash2, Users, Building2, Loader2,
   PauseCircle, PlayCircle, ChevronUp, ChevronDown, SlidersHorizontal,
-  Upload, AlertTriangle, CreditCard, Mail, Info, LogIn,
+  Upload, AlertTriangle, CreditCard, Mail, Info, LogIn, Settings2,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/button";
@@ -1094,6 +1094,9 @@ export default function EmpresasPage() {
                       </Button>
                       <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Gestionar usuarios" onClick={() => setUsersTenant(t)}>
                         <Users className="h-4 w-4 text-klyp-gray" />
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Pasarelas de pago y SMTP" onClick={() => router.push(`/empresas/${t.id}/config`)}>
+                        <Settings2 className="h-4 w-4 text-klyp-gray" />
                       </Button>
                       <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Editar empresa" onClick={() => setEditTenant(t)}>
                         <Pencil className="h-4 w-4 text-klyp-gray" />
