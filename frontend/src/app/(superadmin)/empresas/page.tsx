@@ -1203,8 +1203,6 @@ export default function EmpresasPage() {
       return sortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
     });
 
-  const col = (k: ColKey) => visibleCols.has(k);
-
   const SortIcon = ({ k }: { k: SortKey }) =>
     sortKey === k
       ? (sortDir === "asc" ? <ChevronUp className="h-3 w-3 ml-1 inline" /> : <ChevronDown className="h-3 w-3 ml-1 inline" />)
