@@ -35,6 +35,10 @@ const createTypeSchema = z.object({
     required_error: "Selecciona una categoría",
   }),
   description: z.string().max(1000, "Máximo 1000 caracteres").optional(),
+  iva_rate: z
+    .number({ invalid_type_error: "Introduce un número válido" })
+    .min(0, "El IVA no puede ser negativo")
+    .max(100, "El IVA no puede superar el 100%"),
 });
 
 type CreateTypeFormData = z.infer<typeof createTypeSchema>;
@@ -61,6 +65,7 @@ export function CreateTypeDialog({
     formState: { errors, isSubmitting },
   } = useForm<CreateTypeFormData>({
     resolver: zodResolver(createTypeSchema),
+    defaultValues: { iva_rate: 10 },
   });
 
   const selectedCategory = watch("type_category");
@@ -78,6 +83,7 @@ export function CreateTypeDialog({
         name: data.name,
         type_category: data.type_category,
         description: data.description ?? null,
+        iva_rate: data.iva_rate,
       });
       reset();
       onSuccess(response.data);
@@ -161,6 +167,33 @@ export function CreateTypeDialog({
             />
             {errors.description && (
               <p className="text-xs text-red-600">{errors.description.message}</p>
+            )}
+          </div>
+
+          {/* IVA */}
+          <div className="space-y-1.5">
+            <Label htmlFor="type-iva">
+              Tipo de IVA (%) <span className="text-red-500">*</span>
+            </Label>
+            <div className="relative">
+              <Input
+                id="type-iva"
+                type="number"
+                step="0.01"
+                min="0"
+                max="100"
+                placeholder="10"
+                className="pr-8"
+                {...register("iva_rate", { valueAsNumber: true })}
+                aria-invalid={!!errors.iva_rate}
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-klyp-gray">%</span>
+            </div>
+            <p className="text-xs text-klyp-gray">
+              IVA aplicado al precio del alojamiento (común: 10% turístico, 21% general).
+            </p>
+            {errors.iva_rate && (
+              <p className="text-xs text-red-600">{errors.iva_rate.message}</p>
             )}
           </div>
 

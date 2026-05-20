@@ -68,6 +68,8 @@ export interface AccommodationType {
   type_category: AccommodationCategory;
   description: string | null;
   is_active: boolean;
+  /** Tipo de IVA (%) aplicado al alojamiento */
+  iva_rate: string;
   created_at: string;
   /** Solo presente en el endpoint de listado */
   active_unit_count?: number;
@@ -104,6 +106,8 @@ export interface Extra {
   name: string;
   description: string | null;
   is_active: boolean;
+  /** Tipo de IVA (%) aplicado a este extra */
+  iva_rate: string;
   created_at: string;
 }
 
@@ -252,11 +256,21 @@ export interface PriceBreakdownItem {
   season: string | null;
 }
 
+export interface IvaBreakdownItem {
+  /** Tipo de IVA en % */
+  rate: string;
+  base_imponible: string;
+  iva_amount: string;
+}
+
 export interface PriceCalculationResult {
   nights: number;
   base_price: string;
   extras_price: string;
   total_price: string;
+  iva_breakdown: IvaBreakdownItem[];
+  total_iva: string;
+  total_with_iva: string;
   currency: string;
   breakdown: PriceBreakdownItem[];
   applied_season: string | null;
@@ -294,6 +308,8 @@ export interface Reservation {
   base_price: string;
   extras_price: string;
   total_price: string;
+  iva_amount: string;
+  total_with_iva: string;
   currency: string;
   selected_extra_ids: string[];
   status: ReservationStatus;

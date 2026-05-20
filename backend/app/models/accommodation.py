@@ -6,10 +6,11 @@ FieldDefinition (campos personalizados por tipo) y Extra (servicios adicionales)
 """
 
 from datetime import datetime
+from decimal import Decimal
 from enum import Enum
 from uuid import UUID, uuid4
 
-from sqlalchemy import Column
+from sqlalchemy import Column, Numeric
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy import JSON
 from sqlmodel import Field, SQLModel
@@ -52,6 +53,10 @@ class AccommodationType(SQLModel, table=True):
     )
     description: str | None = Field(default=None, max_length=1000)
     is_active: bool = Field(default=True)
+    iva_rate: Decimal = Field(
+        default=Decimal("10.00"),
+        sa_column=Column(Numeric(5, 2), nullable=False, server_default="10.00"),
+    )
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -127,4 +132,8 @@ class Extra(SQLModel, table=True):
     name: str = Field(max_length=200)
     description: str | None = Field(default=None, max_length=500)
     is_active: bool = Field(default=True)
+    iva_rate: Decimal = Field(
+        default=Decimal("10.00"),
+        sa_column=Column(Numeric(5, 2), nullable=False, server_default="10.00"),
+    )
     created_at: datetime = Field(default_factory=datetime.utcnow)

@@ -6,6 +6,7 @@ Se usan para validación de requests y serialización de responses.
 """
 
 from datetime import datetime
+from decimal import Decimal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -20,12 +21,14 @@ class AccommodationTypeCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     type_category: AccommodationCategory
     description: str | None = Field(default=None, max_length=1000)
+    iva_rate: Decimal = Field(default=Decimal("10.00"), ge=0, decimal_places=2)
 
 
 class AccommodationTypeUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = Field(default=None, max_length=1000)
     is_active: bool | None = None
+    iva_rate: Decimal | None = Field(default=None, ge=0, decimal_places=2)
 
 
 class AccommodationTypeRead(BaseModel):
@@ -35,6 +38,7 @@ class AccommodationTypeRead(BaseModel):
     type_category: AccommodationCategory
     description: str | None
     is_active: bool
+    iva_rate: Decimal
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -115,12 +119,14 @@ class FieldDefinitionRead(BaseModel):
 class ExtraCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     description: str | None = Field(default=None, max_length=500)
+    iva_rate: Decimal = Field(default=Decimal("10.00"), ge=0, decimal_places=2)
 
 
 class ExtraUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = Field(default=None, max_length=500)
     is_active: bool | None = None
+    iva_rate: Decimal | None = Field(default=None, ge=0, decimal_places=2)
 
 
 class ExtraRead(BaseModel):
@@ -129,6 +135,7 @@ class ExtraRead(BaseModel):
     name: str
     description: str | None
     is_active: bool
+    iva_rate: Decimal
     created_at: datetime
 
     model_config = {"from_attributes": True}

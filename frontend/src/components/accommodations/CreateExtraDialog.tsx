@@ -25,6 +25,10 @@ const createExtraSchema = z.object({
     .min(1, "El nombre es obligatorio")
     .max(200, "Máximo 200 caracteres"),
   description: z.string().max(500, "Máximo 500 caracteres").optional(),
+  iva_rate: z
+    .number({ invalid_type_error: "Introduce un número válido" })
+    .min(0, "El IVA no puede ser negativo")
+    .max(100, "El IVA no puede superar el 100%"),
 });
 
 type CreateExtraFormData = z.infer<typeof createExtraSchema>;
@@ -49,6 +53,7 @@ export function CreateExtraDialog({
     formState: { errors, isSubmitting },
   } = useForm<CreateExtraFormData>({
     resolver: zodResolver(createExtraSchema),
+    defaultValues: { iva_rate: 10 },
   });
 
   const handleClose = () => {
@@ -63,6 +68,7 @@ export function CreateExtraDialog({
       const response = await accommodationsApi.createExtra({
         name: data.name,
         description: data.description ?? null,
+        iva_rate: data.iva_rate,
       });
       reset();
       onSuccess(response.data);
@@ -117,6 +123,33 @@ export function CreateExtraDialog({
             />
             {errors.description && (
               <p className="text-xs text-red-600">{errors.description.message}</p>
+            )}
+          </div>
+
+          {/* IVA */}
+          <div className="space-y-1.5">
+            <Label htmlFor="extra-iva">
+              Tipo de IVA (%) <span className="text-red-500">*</span>
+            </Label>
+            <div className="relative">
+              <Input
+                id="extra-iva"
+                type="number"
+                step="0.01"
+                min="0"
+                max="100"
+                placeholder="10"
+                className="pr-8"
+                {...register("iva_rate", { valueAsNumber: true })}
+                aria-invalid={!!errors.iva_rate}
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-klyp-gray">%</span>
+            </div>
+            <p className="text-xs text-klyp-gray">
+              IVA aplicado al precio de este extra (puede diferir del alojamiento).
+            </p>
+            {errors.iva_rate && (
+              <p className="text-xs text-red-600">{errors.iva_rate.message}</p>
             )}
           </div>
 

@@ -283,6 +283,8 @@ async def create_reservation(
         base_price=price_result.base_price,
         extras_price=price_result.extras_price,
         total_price=price_result.total_price,
+        iva_amount=price_result.total_iva,
+        total_with_iva=price_result.total_with_iva,
         currency=price_result.currency,
         selected_extra_ids=[str(eid) for eid in data.selected_extra_ids],
         internal_notes=data.internal_notes,

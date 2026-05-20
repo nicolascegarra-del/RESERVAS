@@ -201,6 +201,14 @@ class PriceBreakdownItem(BaseModel):
     season: str | None = None  # Nombre de la temporada aplicada
 
 
+class IvaBreakdownItem(BaseModel):
+    """Desglose de IVA para un tipo impositivo concreto."""
+
+    rate: Decimal
+    base_imponible: Decimal
+    iva_amount: Decimal
+
+
 class PriceCalculationResult(BaseModel):
     """Resultado completo del cálculo de precio de una reserva."""
 
@@ -208,6 +216,9 @@ class PriceCalculationResult(BaseModel):
     base_price: Decimal
     extras_price: Decimal
     total_price: Decimal
+    iva_breakdown: list[IvaBreakdownItem]
+    total_iva: Decimal
+    total_with_iva: Decimal
     currency: str
     breakdown: list[PriceBreakdownItem]
     applied_season: str | None  # Nombre de la temporada si toda la estancia usa una

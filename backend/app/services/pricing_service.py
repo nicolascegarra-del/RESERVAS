@@ -23,6 +23,7 @@ from app.schemas.pricing import (
     ExtraPriceCreate,
     ExtraPriceRead,
     ExtraPriceUpdate,
+    IvaBreakdownItem,
     PriceBreakdownItem,
     PriceCalculationRequest,
     PriceCalculationResult,
@@ -643,8 +644,10 @@ async def calculate_price(
 
         current_date += timedelta(days=1)
 
-    # 5. Calcular extras_price
+    # 5. Calcular extras_price e IVA de extras (agrupado por tipo de IVA)
     extras_price = Decimal("0.00")
+    extra_iva_base: dict[Decimal, Decimal] = {}  # iva_rate → base imponible acumulada
+
     if request.extra_ids:
         extra_prices_result = await session.exec(
             select(ExtraPrice).where(
@@ -653,10 +656,42 @@ async def calculate_price(
                 ExtraPrice.extra_id.in_(request.extra_ids),
             )
         )
-        for ep in extra_prices_result.all():
-            extras_price += ep.price_per_night * Decimal(nights_total)
+        extra_prices_list = extra_prices_result.all()
 
-    # 6. Construir breakdown tipado
+        # Cargar extras para obtener su iva_rate
+        extras_result = await session.exec(
+            select(Extra).where(
+                Extra.id.in_(request.extra_ids),
+                Extra.tenant_id == tenant_id,
+            )
+        )
+        extra_iva_map: dict[UUID, Decimal] = {e.id: e.iva_rate for e in extras_result.all()}
+
+        for ep in extra_prices_list:
+            cost = ep.price_per_night * Decimal(nights_total)
+            extras_price += cost
+            rate = extra_iva_map.get(ep.extra_id, Decimal("10.00"))
+            extra_iva_base[rate] = extra_iva_base.get(rate, Decimal("0")) + cost
+
+    # 6. Calcular IVA del alojamiento base (usa el iva_rate del AccommodationType)
+    accom_rate = accommodation_type.iva_rate
+    iva_by_rate: dict[Decimal, Decimal] = {}
+    if base_price > Decimal("0"):
+        iva_by_rate[accom_rate] = iva_by_rate.get(accom_rate, Decimal("0")) + base_price
+    for rate, base in extra_iva_base.items():
+        iva_by_rate[rate] = iva_by_rate.get(rate, Decimal("0")) + base
+
+    iva_breakdown: list[IvaBreakdownItem] = []
+    total_iva = Decimal("0.00")
+    for rate in sorted(iva_by_rate.keys()):
+        base_imponible = iva_by_rate[rate]
+        iva_amount = (base_imponible * rate / Decimal("100")).quantize(Decimal("0.01"))
+        total_iva += iva_amount
+        iva_breakdown.append(
+            IvaBreakdownItem(rate=rate, base_imponible=base_imponible, iva_amount=iva_amount)
+        )
+
+    # 7. Construir breakdown tipado
     breakdown: list[PriceBreakdownItem] = []
     for season_name, price_per_night, dates in breakdown_raw:
         first_date = dates[0]
@@ -677,12 +712,16 @@ async def calculate_price(
         applied_season = next(iter(unique_seasons))
 
     total_price = base_price + extras_price
+    total_with_iva = total_price + total_iva
 
     return PriceCalculationResult(
         nights=nights_total,
         base_price=base_price,
         extras_price=extras_price,
         total_price=total_price,
+        iva_breakdown=iva_breakdown,
+        total_iva=total_iva,
+        total_with_iva=total_with_iva,
         currency=pricing_model.currency,
         breakdown=breakdown,
         applied_season=applied_season,

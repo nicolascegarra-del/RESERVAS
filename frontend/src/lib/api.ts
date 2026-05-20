@@ -146,12 +146,14 @@ interface AccommodationTypeCreate {
   name: string;
   type_category: string;
   description?: string | null;
+  iva_rate?: number;
 }
 
 interface AccommodationTypeUpdate {
   name?: string;
   description?: string | null;
   is_active?: boolean;
+  iva_rate?: number;
 }
 
 interface AccommodationUnitCreate {
@@ -191,12 +193,14 @@ interface FieldDefinitionUpdate {
 interface ExtraCreate {
   name: string;
   description?: string | null;
+  iva_rate?: number;
 }
 
 interface ExtraUpdate {
   name?: string;
   description?: string | null;
   is_active?: boolean;
+  iva_rate?: number;
 }
 
 export const accommodationsApi = {

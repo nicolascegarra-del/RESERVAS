@@ -112,6 +112,8 @@ class ReservationRead(BaseModel):
     base_price: Decimal
     extras_price: Decimal
     total_price: Decimal
+    iva_amount: Decimal
+    total_with_iva: Decimal
     currency: str
     selected_extra_ids: list[str]
     status: ReservationStatus

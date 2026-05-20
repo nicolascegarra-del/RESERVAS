@@ -285,6 +285,11 @@ export default function ReservaDetailPage() {
     base_price: reservation.base_price,
     extras_price: reservation.extras_price,
     total_price: reservation.total_price,
+    iva_breakdown: reservation.iva_amount && parseFloat(reservation.iva_amount) > 0
+      ? [{ rate: "—", base_imponible: reservation.total_price, iva_amount: reservation.iva_amount }]
+      : [],
+    total_iva: reservation.iva_amount ?? "0",
+    total_with_iva: reservation.total_with_iva ?? reservation.total_price,
     currency: reservation.currency,
     breakdown: [], // El snapshot no guarda el desglose por tramos
     applied_season: null,

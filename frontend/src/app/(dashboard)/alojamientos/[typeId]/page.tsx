@@ -244,6 +244,15 @@ export default function AccommodationTypeDetailPage() {
               extras disponibles
             </span>
           </div>
+          <div className="flex items-center gap-2 text-sm">
+            <DollarSign className="h-4 w-4 text-klyp-gray" />
+            <span className="text-klyp-gray">
+              IVA:{" "}
+              <span className="font-semibold text-klyp-navy">
+                {accommodationType.iva_rate}%
+              </span>
+            </span>
+          </div>
         </div>
       </div>
 
@@ -467,6 +476,7 @@ export default function AccommodationTypeDetailPage() {
                     <TableRow>
                       <TableHead>Nombre</TableHead>
                       <TableHead>Descripción</TableHead>
+                      <TableHead>IVA</TableHead>
                       <TableHead>Estado</TableHead>
                       {canManage && <TableHead className="w-24">Acciones</TableHead>}
                     </TableRow>
@@ -479,6 +489,9 @@ export default function AccommodationTypeDetailPage() {
                         </TableCell>
                         <TableCell className="text-klyp-gray max-w-xs truncate">
                           {extra.description ?? "—"}
+                        </TableCell>
+                        <TableCell className="text-klyp-navy text-sm font-medium">
+                          {extra.iva_rate}%
                         </TableCell>
                         <TableCell>
                           <span

@@ -81,6 +81,14 @@ class Reservation(SQLModel, table=True):
     base_price: Decimal = Field(sa_column=Column(Numeric(10, 2), nullable=False))
     extras_price: Decimal = Field(sa_column=Column(Numeric(10, 2), nullable=False))
     total_price: Decimal = Field(sa_column=Column(Numeric(10, 2), nullable=False))
+    iva_amount: Decimal = Field(
+        default=Decimal("0.00"),
+        sa_column=Column(Numeric(10, 2), nullable=False, server_default="0.00"),
+    )
+    total_with_iva: Decimal = Field(
+        default=Decimal("0.00"),
+        sa_column=Column(Numeric(10, 2), nullable=False, server_default="0.00"),
+    )
     currency: str = Field(default="EUR", max_length=3)
 
     # Extras seleccionados — lista de UUIDs como JSON
