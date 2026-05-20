@@ -91,6 +91,9 @@ class ReservationPayment(SQLModel, table=True):
         sa_column=Column(String(30), nullable=False),
     )
     gateway_transaction_id: str | None = Field(default=None, max_length=255)
+    # Código de orden enviado a Redsys (12 chars hex del UUID de reserva).
+    # Se usa para correlacionar la notificación IPN con el pago.
+    redsys_order: str | None = Field(default=None, max_length=12)
     paid_at: datetime | None = Field(default=None)
     notes: str | None = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)

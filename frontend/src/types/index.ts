@@ -544,6 +544,7 @@ export interface ReservationPayment {
   amount: string;
   status: PaymentStatus;
   gateway_transaction_id: string | null;
+  redsys_order: string | null;
   paid_at: string | null;
   notes: string | null;
   created_at: string;
@@ -614,3 +615,13 @@ export const INVOICE_STATUS_COLORS: Record<InvoiceStatus, string> = {
   sent: "bg-green-100 text-green-800",
   cancelled: "bg-red-100 text-red-800",
 };
+
+// ─── Redsys ───────────────────────────────────────────────────────────────────
+
+/** Datos devueltos por /redsys/initiate para construir el formulario POST. */
+export interface RedsysFormData {
+  redsys_url: string;
+  Ds_SignatureVersion: string;
+  Ds_MerchantParameters: string;
+  Ds_Signature: string;
+}

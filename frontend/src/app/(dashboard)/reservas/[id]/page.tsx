@@ -28,7 +28,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { extractApiErrorMessage } from "@/lib/utils";
 import type {
   Reservation, ReservationHistoryEntry, ReservationStatus,
-  PaymentMethod, ReservationPayment, Invoice,
+  PaymentMethod, ReservationPayment, Invoice, RedsysFormData,
 } from "@/types";
 import {
   PAYMENT_STATUS_LABELS, PAYMENT_STATUS_COLORS,
@@ -160,6 +160,10 @@ export default function ReservaDetailPage() {
   });
   const [paymentSaving, setPaymentSaving] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+
+  // Redsys
+  const [redsysLoading, setRedsysLoading] = useState(false);
+  const [redsysError, setRedsysError] = useState<string | null>(null);
 
   // Factura
   const [invoice, setInvoice] = useState<Invoice | null>(null);
@@ -363,6 +367,41 @@ export default function ReservaDetailPage() {
     } finally {
       setIsSavingGuest(false);
     }
+  };
+
+  const handleRedsysPayment = async () => {
+    if (!reservation) return;
+    setRedsysLoading(true);
+    setRedsysError(null);
+    try {
+      const res = await billingApi.initiateRedsysPayment(reservation.id);
+      const data: RedsysFormData = res.data;
+
+      // Crear y enviar un formulario POST invisible hacia la pasarela de Redsys
+      const form = document.createElement("form");
+      form.method = "POST";
+      form.action = data.redsys_url;
+
+      const fields: (keyof RedsysFormData)[] = [
+        "Ds_SignatureVersion",
+        "Ds_MerchantParameters",
+        "Ds_Signature",
+      ];
+      fields.forEach((key) => {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = key;
+        input.value = data[key];
+        form.appendChild(input);
+      });
+
+      document.body.appendChild(form);
+      form.submit();
+    } catch (e) {
+      setRedsysError(extractApiErrorMessage(e));
+      setRedsysLoading(false);
+    }
+    // No seteamos loading a false en el caso feliz porque el navegador navega
   };
 
   const handleStatusChange = async (targetStatus: ReservationStatus) => {
@@ -822,11 +861,51 @@ export default function ReservaDetailPage() {
                       </span>
                     </dd>
                   </div>
+                  {/* Permitir reintentar si el pago Redsys falló */}
+                  {payment.status === "failed" && payment.payment_method_name.toLowerCase().includes("redsys") && (
+                    <div className="pt-2">
+                      <Button
+                        size="sm"
+                        className="w-full bg-klyp-navy hover:bg-klyp-navy-light text-white min-h-[44px]"
+                        onClick={() => void handleRedsysPayment()}
+                        disabled={redsysLoading}
+                      >
+                        {redsysLoading ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          "Reintentar pago con Redsys"
+                        )}
+                      </Button>
+                      {redsysError && (
+                        <p className="mt-1.5 text-xs text-red-600">{redsysError}</p>
+                      )}
+                    </div>
+                  )}
                 </dl>
               ) : (
-                <p className="text-sm text-klyp-gray text-center py-2">
-                  Sin registro de pago
-                </p>
+                <div className="space-y-3">
+                  <p className="text-sm text-klyp-gray text-center py-2">
+                    Sin registro de pago
+                  </p>
+                  {/* Botón Redsys — visible si el tenant tiene Redsys habilitado */}
+                  <Button
+                    size="sm"
+                    className="w-full bg-klyp-navy hover:bg-klyp-navy-light text-white min-h-[44px]"
+                    onClick={() => void handleRedsysPayment()}
+                    disabled={redsysLoading}
+                  >
+                    {redsysLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      "Pagar con Redsys"
+                    )}
+                  </Button>
+                  {redsysError && (
+                    <p className="text-xs text-red-600 bg-red-50 rounded px-3 py-2">
+                      {redsysError}
+                    </p>
+                  )}
+                </div>
               )}
             </CardContent>
           </Card>

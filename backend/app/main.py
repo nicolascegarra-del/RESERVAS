@@ -34,6 +34,7 @@ from app.api.v1.settings import router as settings_router
 from app.api.v1.superadmin import router as superadmin_router
 from app.api.v1.users import router as users_router
 from app.api.v1.webhooks import router as webhooks_router
+from app.api.v1.redsys import router as redsys_router
 from app.core.config import settings
 from app.core.database import init_db
 
@@ -101,6 +102,7 @@ app.include_router(mail_logs_router, prefix="/api/v1")
 app.include_router(access_logs_router, prefix="/api/v1")
 app.include_router(webhooks_router, prefix="/api/v1")
 app.include_router(billing_router, prefix="/api/v1")
+app.include_router(redsys_router, prefix="/api/v1")
 
 
 app.mount("/media", StaticFiles(directory="/app/media"), name="media")

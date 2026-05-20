@@ -71,6 +71,7 @@ class ReservationPaymentRead(BaseModel):
     amount: Decimal
     status: PaymentStatus
     gateway_transaction_id: str | None
+    redsys_order: str | None
     paid_at: datetime | None
     notes: str | None
     created_at: datetime
@@ -142,3 +143,15 @@ class PaginatedInvoices(BaseModel):
     total: int
     page: int
     pages: int
+
+
+# ─── Redsys ───────────────────────────────────────────────────────────────────
+
+
+class RedsysFormData(BaseModel):
+    """Datos necesarios para construir el formulario POST de redirección a Redsys."""
+
+    redsys_url: str
+    Ds_SignatureVersion: str
+    Ds_MerchantParameters: str
+    Ds_Signature: str

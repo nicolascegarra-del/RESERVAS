@@ -125,6 +125,7 @@ import type {
   PaymentMethod,
   ReservationPayment,
   Invoice,
+  RedsysFormData,
   AccommodationType,
   AccommodationTypeWithUnits,
   AccommodationUnit,
@@ -926,6 +927,9 @@ export const billingApi = {
       page: number;
       pages: number;
     }>("/api/v1/billing/invoices", { params }),
+
+  initiateRedsysPayment: (reservationId: string) =>
+    apiClient.post<RedsysFormData>(`/api/v1/redsys/initiate/${reservationId}`),
 };
 
 export const changeRequestsApi = {
