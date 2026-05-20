@@ -44,6 +44,10 @@ class TenantUpdate(BaseModel):
     bank_account: str | None = Field(default=None, max_length=50)
     max_company_admins: int | None = Field(default=None, ge=1, le=100)
     max_reception_users: int | None = Field(default=None, ge=1, le=500)
+    brand_name: str | None = Field(default=None, max_length=255)
+    primary_color: str | None = Field(default=None, max_length=7)
+    accent_color: str | None = Field(default=None, max_length=7)
+    tagline: str | None = Field(default=None, max_length=500)
 
 
 class TenantRead(BaseModel):
@@ -66,6 +70,10 @@ class TenantRead(BaseModel):
     bank_account: str | None
     max_company_admins: int
     max_reception_users: int
+    brand_name: str | None = None
+    primary_color: str | None = None
+    accent_color: str | None = None
+    tagline: str | None = None
 
     model_config = {"from_attributes": True}
 

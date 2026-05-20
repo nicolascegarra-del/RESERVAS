@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -13,6 +13,9 @@ import {
   Tag,
   Zap,
   DollarSign,
+  Image,
+  Upload,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,12 +36,18 @@ import { CreateExtraDialog } from "@/components/accommodations/CreateExtraDialog
 import { PricingTab } from "@/components/pricing/PricingTab";
 import { accommodationsApi } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
-import { CATEGORY_LABELS, CATEGORY_COLORS, FIELD_TYPE_LABELS } from "@/types";
+import {
+  CATEGORY_LABELS,
+  CATEGORY_COLORS,
+  FIELD_TYPE_LABELS,
+  MULTIPLIER_TYPE_LABELS,
+} from "@/types";
 import type {
   AccommodationTypeWithUnits,
   AccommodationUnit,
   FieldDefinition,
   Extra,
+  AccommodationPhoto,
 } from "@/types";
 
 const CATEGORY_ICONS = {
@@ -56,12 +65,15 @@ export default function AccommodationTypeDetailPage() {
     useState<AccommodationTypeWithUnits | null>(null);
   const [fields, setFields] = useState<FieldDefinition[]>([]);
   const [extras, setExtras] = useState<Extra[]>([]);
+  const [photos, setPhotos] = useState<AccommodationPhoto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
   const [isCreateUnitOpen, setIsCreateUnitOpen] = useState(false);
   const [isCreateFieldOpen, setIsCreateFieldOpen] = useState(false);
   const [isCreateExtraOpen, setIsCreateExtraOpen] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const user = useAuthStore((state) => state.user);
   const canManage =
@@ -71,14 +83,17 @@ export default function AccommodationTypeDetailPage() {
     setIsLoading(true);
     setLoadError(null);
     try {
-      const [typeResponse, fieldsResponse, extrasResponse] = await Promise.all([
-        accommodationsApi.getType(typeId),
-        accommodationsApi.listFields(typeId),
-        accommodationsApi.listExtras(),
-      ]);
+      const [typeResponse, fieldsResponse, extrasResponse, photosResponse] =
+        await Promise.all([
+          accommodationsApi.getType(typeId),
+          accommodationsApi.listFields(typeId),
+          accommodationsApi.listExtras(),
+          accommodationsApi.listPhotos(typeId),
+        ]);
       setAccommodationType(typeResponse.data);
       setFields(fieldsResponse.data);
       setExtras(extrasResponse.data);
+      setPhotos(photosResponse.data);
     } catch {
       setLoadError("No se pudo cargar la información. Inténtalo de nuevo.");
     } finally {
@@ -138,6 +153,33 @@ export default function AccommodationTypeDetailPage() {
       setExtras((prev) => prev.filter((e) => e.id !== extraId));
     } catch {
       // Error silenciado intencionalmente — el usuario puede reintentar
+    }
+  };
+
+  const handleUploadPhoto = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingPhoto(true);
+    try {
+      const response = await accommodationsApi.uploadPhoto(typeId, file);
+      setPhotos((prev) => [...prev, response.data]);
+    } catch {
+      // Error silenciado — el usuario puede reintentar
+    } finally {
+      setIsUploadingPhoto(false);
+      if (photoInputRef.current) photoInputRef.current.value = "";
+    }
+  };
+
+  const handleDeletePhoto = async (photoId: string) => {
+    if (!confirm("¿Eliminar esta foto?")) return;
+    try {
+      await accommodationsApi.deletePhoto(typeId, photoId);
+      setPhotos((prev) => prev.filter((p) => p.id !== photoId));
+    } catch {
+      // Error silenciado — el usuario puede reintentar
     }
   };
 
@@ -258,7 +300,7 @@ export default function AccommodationTypeDetailPage() {
 
       {/* Tabs */}
       <Tabs defaultValue="units">
-        <TabsList className="w-full sm:w-auto">
+        <TabsList className="flex-wrap h-auto gap-1 sm:w-auto">
           <TabsTrigger value="units">
             Unidades ({accommodationType.units.length})
           </TabsTrigger>
@@ -271,6 +313,10 @@ export default function AccommodationTypeDetailPage() {
           <TabsTrigger value="pricing">
             <DollarSign className="mr-1 h-3.5 w-3.5" />
             Precios
+          </TabsTrigger>
+          <TabsTrigger value="photos">
+            <Image className="mr-1 h-3.5 w-3.5" />
+            Fotos ({photos.length})
           </TabsTrigger>
           <TabsTrigger value="ocupacion">
             Ocupación
@@ -475,7 +521,8 @@ export default function AccommodationTypeDetailPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Nombre</TableHead>
-                      <TableHead>Descripción</TableHead>
+                      <TableHead>Precio</TableHead>
+                      <TableHead>Multiplicador</TableHead>
                       <TableHead>IVA</TableHead>
                       <TableHead>Estado</TableHead>
                       {canManage && <TableHead className="w-24">Acciones</TableHead>}
@@ -484,13 +531,29 @@ export default function AccommodationTypeDetailPage() {
                   <TableBody>
                     {extras.map((extra) => (
                       <TableRow key={extra.id}>
-                        <TableCell className="font-medium text-klyp-navy">
-                          {extra.name}
-                        </TableCell>
-                        <TableCell className="text-klyp-gray max-w-xs truncate">
-                          {extra.description ?? "—"}
+                        <TableCell>
+                          <p className="font-medium text-klyp-navy">{extra.name}</p>
+                          {extra.description && (
+                            <p className="text-xs text-klyp-gray truncate max-w-[160px]">
+                              {extra.description}
+                            </p>
+                          )}
                         </TableCell>
                         <TableCell className="text-klyp-navy text-sm font-medium">
+                          {Number(extra.price).toFixed(2)} €
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-xs text-klyp-gray">
+                            {MULTIPLIER_TYPE_LABELS[extra.multiplier_type]}
+                            {extra.multiplier_type === "per_custom" &&
+                              extra.multiplier_label && (
+                                <span className="ml-1 text-klyp-navy">
+                                  ({extra.multiplier_label})
+                                </span>
+                              )}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-klyp-navy text-sm">
                           {extra.iva_rate}%
                         </TableCell>
                         <TableCell>
@@ -536,6 +599,82 @@ export default function AccommodationTypeDetailPage() {
             extras={extras}
             canManage={canManage}
           />
+        </TabsContent>
+
+        {/* Tab: Fotos */}
+        <TabsContent value="photos">
+          <div className="space-y-4">
+            {canManage && (
+              <div className="flex justify-end">
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/svg+xml"
+                  className="hidden"
+                  onChange={(e) => void handleUploadPhoto(e)}
+                />
+                <Button
+                  size="sm"
+                  onClick={() => photoInputRef.current?.click()}
+                  disabled={isUploadingPhoto}
+                  className="min-h-[44px]"
+                >
+                  {isUploadingPhoto ? (
+                    <>
+                      <Upload className="mr-2 h-4 w-4 animate-pulse" />
+                      Subiendo…
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="mr-2 h-4 w-4" />
+                      Subir Foto
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+
+            {photos.length === 0 ? (
+              <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-klyp-pale bg-white py-12 text-center">
+                <Image className="h-8 w-8 text-klyp-pale" />
+                <p className="mt-3 text-sm font-medium text-klyp-navy">Sin fotos</p>
+                <p className="text-xs text-klyp-gray mt-1">
+                  Sube imágenes del alojamiento (JPEG, PNG, WebP — máx. 10 MB).
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                {photos.map((photo) => (
+                  <div
+                    key={photo.id}
+                    className="group relative overflow-hidden rounded-lg border border-klyp-pale bg-white shadow-sm"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={photo.file_url}
+                      alt={photo.caption ?? "Foto del alojamiento"}
+                      className="h-40 w-full object-cover"
+                    />
+                    {photo.caption && (
+                      <p className="px-2 py-1.5 text-xs text-klyp-gray truncate">
+                        {photo.caption}
+                      </p>
+                    )}
+                    {canManage && (
+                      <button
+                        type="button"
+                        onClick={() => void handleDeletePhoto(photo.id)}
+                        className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-klyp-gray opacity-0 shadow-sm transition-opacity group-hover:opacity-100 hover:text-red-600"
+                        aria-label="Eliminar foto"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </TabsContent>
 
         {/* Tab: Ocupación */}

@@ -131,6 +131,8 @@ import type {
   AccommodationUnit,
   FieldDefinition,
   Extra,
+  AccommodationPriceRule,
+  AccommodationPhoto,
   PricingModel,
   PricingModelWithExtras,
   Season,
@@ -198,6 +200,9 @@ interface ExtraCreate {
   name: string;
   description?: string | null;
   iva_rate?: number;
+  price?: number;
+  multiplier_type?: string;
+  multiplier_label?: string | null;
 }
 
 interface ExtraUpdate {
@@ -205,6 +210,34 @@ interface ExtraUpdate {
   description?: string | null;
   is_active?: boolean;
   iva_rate?: number;
+  price?: number;
+  multiplier_type?: string;
+  multiplier_label?: string | null;
+}
+
+interface PriceRuleCreate {
+  name: string;
+  date_from: string;
+  date_to: string;
+  price_per_night: number;
+  min_nights?: number;
+  priority?: number;
+  is_active?: boolean;
+}
+
+interface PriceRuleUpdate {
+  name?: string;
+  date_from?: string;
+  date_to?: string;
+  price_per_night?: number;
+  min_nights?: number;
+  priority?: number;
+  is_active?: boolean;
+}
+
+interface PhotoUpdate {
+  caption?: string | null;
+  sort_order?: number;
 }
 
 export const accommodationsApi = {
@@ -284,6 +317,57 @@ export const accommodationsApi = {
 
   deleteExtra: (extraId: string) =>
     apiClient.delete(`/api/v1/accommodations/extras/${extraId}`),
+
+  // AccommodationPriceRule
+  listPriceRules: (typeId: string) =>
+    apiClient.get<AccommodationPriceRule[]>(
+      `/api/v1/accommodations/types/${typeId}/price-rules`,
+    ),
+
+  createPriceRule: (typeId: string, data: PriceRuleCreate) =>
+    apiClient.post<AccommodationPriceRule>(
+      `/api/v1/accommodations/types/${typeId}/price-rules`,
+      data,
+    ),
+
+  updatePriceRule: (typeId: string, ruleId: string, data: PriceRuleUpdate) =>
+    apiClient.patch<AccommodationPriceRule>(
+      `/api/v1/accommodations/types/${typeId}/price-rules/${ruleId}`,
+      data,
+    ),
+
+  deletePriceRule: (typeId: string, ruleId: string) =>
+    apiClient.delete(
+      `/api/v1/accommodations/types/${typeId}/price-rules/${ruleId}`,
+    ),
+
+  // AccommodationPhoto
+  listPhotos: (typeId: string) =>
+    apiClient.get<AccommodationPhoto[]>(
+      `/api/v1/accommodations/types/${typeId}/photos`,
+    ),
+
+  uploadPhoto: (typeId: string, file: File, caption?: string) => {
+    const form = new FormData();
+    form.append("file", file);
+    if (caption) form.append("caption", caption);
+    return apiClient.post<AccommodationPhoto>(
+      `/api/v1/accommodations/types/${typeId}/photos`,
+      form,
+      { headers: { "Content-Type": "multipart/form-data" } },
+    );
+  },
+
+  updatePhoto: (typeId: string, photoId: string, data: PhotoUpdate) =>
+    apiClient.patch<AccommodationPhoto>(
+      `/api/v1/accommodations/types/${typeId}/photos/${photoId}`,
+      data,
+    ),
+
+  deletePhoto: (typeId: string, photoId: string) =>
+    apiClient.delete(
+      `/api/v1/accommodations/types/${typeId}/photos/${photoId}`,
+    ),
 };
 
 // ─── Precios (Sprint 3) ────────────────────────────────────────────────────────
@@ -936,6 +1020,30 @@ export const billingApi = {
       pages: number;
     }>("/api/v1/billing/invoices", { params }),
 
+  getInvoice: (id: string) =>
+    apiClient.get<Invoice>(`/api/v1/billing/invoices/${id}`),
+
+  cancelInvoice: (id: string) =>
+    apiClient.post<Invoice>(`/api/v1/billing/invoices/${id}/cancel`),
+
+  markInvoiceSent: (id: string) =>
+    apiClient.post<Invoice>(`/api/v1/billing/invoices/${id}/mark-sent`),
+
+  createCreditNote: (id: string) =>
+    apiClient.post<Invoice>(`/api/v1/billing/invoices/${id}/credit-note`),
+
+  createManualInvoice: (data: {
+    recipient_name: string;
+    recipient_nif?: string | null;
+    recipient_address?: string | null;
+    recipient_email?: string | null;
+    lines: Record<string, unknown>[];
+    payment_method_name?: string | null;
+    invoice_series?: string;
+  }) => apiClient.post<Invoice>("/api/v1/billing/invoices/manual", data),
+
+  downloadPdfUrl: (id: string) => `/api/v1/billing/invoices/${id}/pdf`,
+
   initiateRedsysPayment: (reservationId: string) =>
     apiClient.post<RedsysFormData>(`/api/v1/redsys/initiate/${reservationId}`),
 };
@@ -960,4 +1068,15 @@ export const changeRequestsApi = {
 
   reject: (id: string, review_comment?: string) =>
     apiClient.patch<ChangeRequest>(`/api/v1/change-requests/${id}/reject`, { review_comment }),
+};
+
+export interface WidgetConfig {
+  visible_widgets: string[];
+}
+
+export const preferencesApi = {
+  get: () =>
+    apiClient.get<{ widget_config: WidgetConfig }>("/api/v1/me/preferences"),
+  update: (widget_config: WidgetConfig) =>
+    apiClient.patch<{ widget_config: WidgetConfig }>("/api/v1/me/preferences", { widget_config }),
 };

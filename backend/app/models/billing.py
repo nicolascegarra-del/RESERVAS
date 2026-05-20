@@ -112,13 +112,14 @@ class Invoice(SQLModel, table=True):
     __tablename__ = "invoices"
     __table_args__ = (
         UniqueConstraint("tenant_id", "invoice_number", name="uq_invoice_number"),
-        UniqueConstraint("reservation_id", name="uq_invoice_reservation"),
     )
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     tenant_id: UUID = Field(foreign_key="tenants.id", index=True)
-    reservation_id: UUID = Field(foreign_key="reservations.id", index=True)
+    reservation_id: UUID | None = Field(default=None, foreign_key="reservations.id", index=True)
     invoice_number: str = Field(max_length=50)
+    is_credit_note: bool = Field(default=False)
+    credit_note_for_id: UUID | None = Field(default=None, foreign_key="invoices.id", index=True)
     invoice_series: str = Field(max_length=20, default="FAC")
     invoice_year: int
     invoice_sequence: int

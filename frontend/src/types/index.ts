@@ -100,16 +100,50 @@ export interface FieldDefinition {
   created_at: string;
 }
 
+export type MultiplierType = "fixed" | "per_person" | "per_custom";
+
 export interface Extra {
   id: string;
   tenant_id: string;
   name: string;
   description: string | null;
   is_active: boolean;
-  /** Tipo de IVA (%) aplicado a este extra */
   iva_rate: string;
+  price: string;
+  multiplier_type: MultiplierType;
+  multiplier_label: string | null;
   created_at: string;
 }
+
+export interface AccommodationPriceRule {
+  id: string;
+  tenant_id: string;
+  accommodation_type_id: string;
+  name: string;
+  date_from: string;
+  date_to: string;
+  price_per_night: string;
+  min_nights: number;
+  priority: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface AccommodationPhoto {
+  id: string;
+  tenant_id: string;
+  accommodation_type_id: string;
+  file_url: string;
+  caption: string | null;
+  sort_order: number;
+  created_at: string;
+}
+
+export const MULTIPLIER_TYPE_LABELS: Record<MultiplierType, string> = {
+  fixed: "Precio fijo",
+  per_person: "Por persona",
+  per_custom: "Por cantidad",
+};
 
 /** AccommodationType con sus unidades — devuelto por GET /types/{id} */
 export interface AccommodationTypeWithUnits extends AccommodationType {
@@ -554,12 +588,14 @@ export interface ReservationPayment {
 export interface Invoice {
   id: string;
   tenant_id: string;
-  reservation_id: string;
+  reservation_id: string | null;
   invoice_number: string;
   invoice_series: string;
   invoice_year: number;
   invoice_sequence: number;
   status: InvoiceStatus;
+  is_credit_note: boolean;
+  credit_note_for_id: string | null;
   issuer_name: string | null;
   issuer_cif: string | null;
   issuer_address: string | null;

@@ -54,7 +54,7 @@ export function Sidebar() {
 
   const navItems: NavItem[] = [
     {
-      label: "Dashboard",
+      label: "Cuadro de Mandos",
       href: "/dashboard",
       icon: LayoutDashboard,
     },

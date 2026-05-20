@@ -11,7 +11,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from app.models.accommodation import AccommodationCategory, FieldType
+from app.models.accommodation import AccommodationCategory, FieldType, MultiplierType
 
 
 # ─── AccommodationType ──────────────────────────────────────────────────────
@@ -120,6 +120,9 @@ class ExtraCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     description: str | None = Field(default=None, max_length=500)
     iva_rate: Decimal = Field(default=Decimal("10.00"), ge=0, decimal_places=2)
+    price: Decimal = Field(default=Decimal("0.00"), ge=0, decimal_places=2)
+    multiplier_type: MultiplierType = MultiplierType.fixed
+    multiplier_label: str | None = Field(default=None, max_length=100)
 
 
 class ExtraUpdate(BaseModel):
@@ -127,6 +130,9 @@ class ExtraUpdate(BaseModel):
     description: str | None = Field(default=None, max_length=500)
     is_active: bool | None = None
     iva_rate: Decimal | None = Field(default=None, ge=0, decimal_places=2)
+    price: Decimal | None = Field(default=None, ge=0, decimal_places=2)
+    multiplier_type: MultiplierType | None = None
+    multiplier_label: str | None = Field(default=None, max_length=100)
 
 
 class ExtraRead(BaseModel):
@@ -136,9 +142,79 @@ class ExtraRead(BaseModel):
     description: str | None
     is_active: bool
     iva_rate: Decimal
+    price: Decimal
+    multiplier_type: MultiplierType
+    multiplier_label: str | None
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# ─── AccommodationPriceRule ────────────────────────────────────────────────────
+
+
+class AccommodationPriceRuleCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    date_from: str = Field(
+        max_length=5,
+        pattern=r"^\d{2}-\d{2}$",
+        description="Inicio del tramo en formato MM-DD, ej: 07-01",
+    )
+    date_to: str = Field(
+        max_length=5,
+        pattern=r"^\d{2}-\d{2}$",
+        description="Fin del tramo en formato MM-DD, ej: 08-31",
+    )
+    price_per_night: Decimal = Field(ge=0, decimal_places=2)
+    min_nights: int = Field(default=1, ge=1)
+    priority: int = Field(default=0)
+    is_active: bool = True
+
+
+class AccommodationPriceRuleUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    date_from: str | None = Field(default=None, max_length=5, pattern=r"^\d{2}-\d{2}$")
+    date_to: str | None = Field(default=None, max_length=5, pattern=r"^\d{2}-\d{2}$")
+    price_per_night: Decimal | None = Field(default=None, ge=0, decimal_places=2)
+    min_nights: int | None = Field(default=None, ge=1)
+    priority: int | None = None
+    is_active: bool | None = None
+
+
+class AccommodationPriceRuleRead(BaseModel):
+    id: UUID
+    tenant_id: UUID
+    accommodation_type_id: UUID
+    name: str
+    date_from: str
+    date_to: str
+    price_per_night: Decimal
+    min_nights: int
+    priority: int
+    is_active: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ─── AccommodationPhoto ────────────────────────────────────────────────────────
+
+
+class AccommodationPhotoRead(BaseModel):
+    id: UUID
+    tenant_id: UUID
+    accommodation_type_id: UUID
+    file_url: str
+    caption: str | None
+    sort_order: int
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class AccommodationPhotoUpdate(BaseModel):
+    caption: str | None = Field(default=None, max_length=200)
+    sort_order: int | None = None
 
 
 # ─── Schemas compuestos ───────────────────────────────────────────────────────

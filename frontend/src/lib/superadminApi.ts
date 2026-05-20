@@ -23,6 +23,10 @@ export interface TenantSummary {
   bank_account: string | null;
   max_company_admins: number;
   max_reception_users: number;
+  brand_name: string | null;
+  primary_color: string | null;
+  accent_color: string | null;
+  tagline: string | null;
 }
 
 export interface TenantConfig {
@@ -78,6 +82,10 @@ export type TenantCreatePayload = {
   bank_account?: string | null;
   max_company_admins?: number;
   max_reception_users?: number;
+  brand_name?: string | null;
+  primary_color?: string | null;
+  accent_color?: string | null;
+  tagline?: string | null;
 };
 
 // ─── Tenants ─────────────────────────────────────────────────────────────────

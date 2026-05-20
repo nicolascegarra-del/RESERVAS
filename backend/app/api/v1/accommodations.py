@@ -12,13 +12,18 @@ El super_admin puede operar sobre cualquier tenant pasando ?tenant_id=<uuid>.
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.database import get_session
 from app.core.dependencies import get_current_user, require_role
 from app.models.user import User, UserRole
 from app.schemas.accommodation import (
+    AccommodationPhotoRead,
+    AccommodationPhotoUpdate,
+    AccommodationPriceRuleCreate,
+    AccommodationPriceRuleRead,
+    AccommodationPriceRuleUpdate,
     AccommodationTypeCreate,
     AccommodationTypeRead,
     AccommodationTypeSummary,
@@ -410,3 +415,165 @@ async def delete_extra(
     await accommodation_service.delete_extra(
         session, extra_id, effective_tenant_id
     )
+
+
+# ─── Price Rules ──────────────────────────────────────────────────────────────
+
+
+@router.get(
+    "/accommodations/types/{type_id}/price-rules",
+    response_model=list[AccommodationPriceRuleRead],
+    summary="Listar reglas de precio del tipo de alojamiento",
+)
+async def list_price_rules(
+    type_id: UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    tenant_id: UUID | None = Query(default=None, description="Solo para super_admin"),
+) -> list[AccommodationPriceRuleRead]:
+    effective_tenant_id = _resolve_tenant_id(current_user, tenant_id)
+    return await accommodation_service.list_price_rules(session, type_id, effective_tenant_id)
+
+
+@router.post(
+    "/accommodations/types/{type_id}/price-rules",
+    response_model=AccommodationPriceRuleRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Crear regla de precio",
+    dependencies=[Depends(require_role(UserRole.company_admin, UserRole.super_admin))],
+)
+async def create_price_rule(
+    type_id: UUID,
+    data: AccommodationPriceRuleCreate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    tenant_id: UUID | None = Query(default=None, description="Solo para super_admin"),
+) -> AccommodationPriceRuleRead:
+    effective_tenant_id = _resolve_tenant_id(current_user, tenant_id)
+    return await accommodation_service.create_price_rule(session, type_id, data, effective_tenant_id)
+
+
+@router.patch(
+    "/accommodations/types/{type_id}/price-rules/{rule_id}",
+    response_model=AccommodationPriceRuleRead,
+    summary="Actualizar regla de precio",
+    dependencies=[Depends(require_role(UserRole.company_admin, UserRole.super_admin))],
+)
+async def update_price_rule(
+    type_id: UUID,
+    rule_id: UUID,
+    data: AccommodationPriceRuleUpdate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    tenant_id: UUID | None = Query(default=None, description="Solo para super_admin"),
+) -> AccommodationPriceRuleRead:
+    effective_tenant_id = _resolve_tenant_id(current_user, tenant_id)
+    return await accommodation_service.update_price_rule(session, rule_id, data, effective_tenant_id)
+
+
+@router.delete(
+    "/accommodations/types/{type_id}/price-rules/{rule_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Eliminar regla de precio",
+    dependencies=[Depends(require_role(UserRole.company_admin, UserRole.super_admin))],
+)
+async def delete_price_rule(
+    type_id: UUID,
+    rule_id: UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    tenant_id: UUID | None = Query(default=None, description="Solo para super_admin"),
+) -> None:
+    effective_tenant_id = _resolve_tenant_id(current_user, tenant_id)
+    await accommodation_service.delete_price_rule(session, rule_id, effective_tenant_id)
+
+
+# ─── Photos ───────────────────────────────────────────────────────────────────
+
+
+@router.get(
+    "/accommodations/types/{type_id}/photos",
+    response_model=list[AccommodationPhotoRead],
+    summary="Listar fotos del tipo de alojamiento",
+)
+async def list_photos(
+    type_id: UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    tenant_id: UUID | None = Query(default=None, description="Solo para super_admin"),
+) -> list[AccommodationPhotoRead]:
+    effective_tenant_id = _resolve_tenant_id(current_user, tenant_id)
+    return await accommodation_service.list_photos(session, type_id, effective_tenant_id)
+
+
+@router.post(
+    "/accommodations/types/{type_id}/photos",
+    response_model=AccommodationPhotoRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Subir foto al tipo de alojamiento",
+    dependencies=[Depends(require_role(UserRole.company_admin, UserRole.super_admin))],
+)
+async def upload_photo(
+    type_id: UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    file: UploadFile = File(...),
+    tenant_id: UUID | None = Query(default=None, description="Solo para super_admin"),
+) -> AccommodationPhotoRead:
+    from app.services import minio_service
+
+    effective_tenant_id = _resolve_tenant_id(current_user, tenant_id)
+    content_type = file.content_type or "application/octet-stream"
+    file_bytes = await file.read()
+    try:
+        file_url, file_key = minio_service.upload_accommodation_photo(
+            file_bytes=file_bytes,
+            content_type=content_type,
+            original_filename=file.filename or "photo",
+            tenant_id=str(effective_tenant_id),
+            type_id=str(type_id),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return await accommodation_service.create_photo(
+        session, type_id, file_url, file_key, effective_tenant_id
+    )
+
+
+@router.patch(
+    "/accommodations/types/{type_id}/photos/{photo_id}",
+    response_model=AccommodationPhotoRead,
+    summary="Actualizar caption/orden de foto",
+    dependencies=[Depends(require_role(UserRole.company_admin, UserRole.super_admin))],
+)
+async def update_photo(
+    type_id: UUID,
+    photo_id: UUID,
+    data: AccommodationPhotoUpdate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    tenant_id: UUID | None = Query(default=None, description="Solo para super_admin"),
+) -> AccommodationPhotoRead:
+    effective_tenant_id = _resolve_tenant_id(current_user, tenant_id)
+    return await accommodation_service.update_photo(session, photo_id, data, effective_tenant_id)
+
+
+@router.delete(
+    "/accommodations/types/{type_id}/photos/{photo_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Eliminar foto",
+    dependencies=[Depends(require_role(UserRole.company_admin, UserRole.super_admin))],
+)
+async def delete_photo(
+    type_id: UUID,
+    photo_id: UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    tenant_id: UUID | None = Query(default=None, description="Solo para super_admin"),
+) -> None:
+    from app.services import minio_service
+
+    effective_tenant_id = _resolve_tenant_id(current_user, tenant_id)
+    photo = await accommodation_service.delete_photo(session, photo_id, effective_tenant_id)
+    if photo:
+        minio_service.delete_object(photo)

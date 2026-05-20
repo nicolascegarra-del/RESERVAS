@@ -56,6 +56,14 @@ class Settings(BaseSettings):
     # Frontend URL (para enlaces en emails)
     frontend_url: str = "http://localhost:3000"
 
+    # MinIO / S3-compatible storage
+    minio_endpoint: str = "localhost:9000"
+    minio_access_key: str = "minioadmin"
+    minio_secret_key: str = "minioadmin"
+    minio_bucket: str = "kotis"
+    minio_use_ssl: bool = False
+    minio_public_url: str = ""  # URL pública base; si vacío se construye con endpoint
+
     @property
     def cors_origins_list(self) -> list[str]:
         """Parsea la lista de orígenes CORS desde la variable de entorno."""

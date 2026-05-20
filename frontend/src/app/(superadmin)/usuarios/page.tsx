@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Plus, Loader2, Key, UserX, UserCheck, Users,
-  ChevronUp, ChevronDown, SlidersHorizontal,
+  ChevronUp, ChevronDown, SlidersHorizontal, GripVertical,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -166,6 +166,30 @@ const ALL_COLS: { key: ColKey; label: string }[] = [
   { key: "creado", label: "Creado" },
 ];
 
+const STORAGE_KEY_USUARIOS = "usuarios_col_state";
+const ALL_COL_KEYS_USR = ALL_COLS.map((c) => c.key) as ColKey[];
+
+function loadUsuariosColState(): { visible: Set<ColKey>; order: ColKey[] } {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_USUARIOS);
+    if (stored) {
+      const parsed: unknown = JSON.parse(stored);
+      if (Array.isArray(parsed) && typeof parsed[0] === "string") {
+        return { visible: new Set(parsed as ColKey[]), order: [...ALL_COL_KEYS_USR] };
+      }
+      const s = parsed as { visible?: string[]; order?: string[] };
+      const order = ((s.order ?? ALL_COL_KEYS_USR) as ColKey[]).filter((k) => ALL_COL_KEYS_USR.includes(k));
+      for (const k of ALL_COL_KEYS_USR) { if (!order.includes(k)) order.push(k); }
+      return { visible: new Set((s.visible ?? ALL_COL_KEYS_USR) as ColKey[]), order };
+    }
+  } catch { /* ignore */ }
+  return { visible: new Set(ALL_COL_KEYS_USR), order: [...ALL_COL_KEYS_USR] };
+}
+
+function saveUsuariosColState(order: ColKey[], visible: Set<ColKey>) {
+  localStorage.setItem(STORAGE_KEY_USUARIOS, JSON.stringify({ visible: [...visible], order }));
+}
+
 // ─── Contenido de la página ───────────────────────────────────────────────────
 
 function UsuariosPageContent() {
@@ -183,8 +207,10 @@ function UsuariosPageContent() {
   const [filterRole, setFilterRole] = useState("all");
   const [filterState, setFilterState] = useState<"all" | "active" | "inactive">("all");
 
-  const [visibleCols, setVisibleCols] = useState<Set<ColKey>>(new Set(ALL_COLS.map((c) => c.key)));
+  const [visibleCols, setVisibleCols] = useState<Set<ColKey>>(new Set(ALL_COL_KEYS_USR));
+  const [colOrder, setColOrder] = useState<ColKey[]>([...ALL_COL_KEYS_USR]);
   const [showColMenu, setShowColMenu] = useState(false);
+  const [dragColKey, setDragColKey] = useState<ColKey | null>(null);
 
   const [sortKey, setSortKey] = useState<SortKey>("nombre");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -203,6 +229,16 @@ function UsuariosPageContent() {
   }, [filterTenant]);
 
   useEffect(() => { void fetchData(); }, [fetchData]);
+
+  useEffect(() => {
+    const { visible, order } = loadUsuariosColState();
+    setVisibleCols(visible);
+    setColOrder(order);
+  }, []);
+
+  useEffect(() => {
+    saveUsuariosColState(colOrder, visibleCols);
+  }, [colOrder, visibleCols]);
 
   const toggleActive = async (user: AdminUser) => {
     try {
@@ -239,7 +275,6 @@ function UsuariosPageContent() {
       return sortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
     });
 
-  const col = (k: ColKey) => visibleCols.has(k);
   const SortIcon = ({ k }: { k: SortKey }) =>
     sortKey === k
       ? (sortDir === "asc" ? <ChevronUp className="h-3 w-3 ml-1 inline" /> : <ChevronDown className="h-3 w-3 ml-1 inline" />)
@@ -303,22 +338,45 @@ function UsuariosPageContent() {
             <SlidersHorizontal className="h-4 w-4" />Columnas
           </Button>
           {showColMenu && (
-            <div className="absolute right-0 mt-1 w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-10 p-2">
-              {ALL_COLS.map((c) => (
-                <label key={c.key} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 cursor-pointer text-sm">
-                  <input
-                    type="checkbox"
-                    checked={visibleCols.has(c.key)}
-                    onChange={() => setVisibleCols((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(c.key)) { next.delete(c.key); } else { next.add(c.key); }
-                      return next;
-                    })}
-                    className="rounded"
-                  />
-                  {c.label}
-                </label>
-              ))}
+            <div className="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10 p-2">
+              {colOrder.map((key) => {
+                const col = ALL_COLS.find((c) => c.key === key)!;
+                return (
+                  <div
+                    key={key}
+                    draggable
+                    onDragStart={() => setDragColKey(key)}
+                    onDragOver={(e) => { e.preventDefault(); }}
+                    onDrop={() => {
+                      if (!dragColKey || dragColKey === key) return;
+                      setColOrder((prev) => {
+                        const next = [...prev];
+                        const from = next.indexOf(dragColKey);
+                        const to = next.indexOf(key);
+                        next.splice(from, 1);
+                        next.splice(to, 0, dragColKey);
+                        return next;
+                      });
+                      setDragColKey(null);
+                    }}
+                    onDragEnd={() => setDragColKey(null)}
+                    className={`flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 cursor-grab text-sm ${dragColKey === key ? "opacity-50" : ""}`}
+                  >
+                    <GripVertical className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                    <input
+                      type="checkbox"
+                      checked={visibleCols.has(key)}
+                      onChange={() => setVisibleCols((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(key)) { next.delete(key); } else { next.add(key); }
+                        return next;
+                      })}
+                      className="rounded"
+                    />
+                    {col.label}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -337,66 +395,68 @@ function UsuariosPageContent() {
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                {col("nombre") && (
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-klyp-gray cursor-pointer select-none" onClick={() => handleSort("nombre")}>
-                    Nombre<SortIcon k="nombre" />
-                  </th>
-                )}
-                {col("email") && (
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-klyp-gray cursor-pointer select-none" onClick={() => handleSort("email")}>
-                    Email<SortIcon k="email" />
-                  </th>
-                )}
-                {col("rol") && (
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-klyp-gray cursor-pointer select-none" onClick={() => handleSort("rol")}>
-                    Rol<SortIcon k="rol" />
-                  </th>
-                )}
-                {col("empresa") && (
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-klyp-gray cursor-pointer select-none" onClick={() => handleSort("empresa")}>
-                    Empresa<SortIcon k="empresa" />
-                  </th>
-                )}
-                {col("estado") && <th className="px-4 py-3 text-left text-xs font-semibold text-klyp-gray">Estado</th>}
-                {col("creado") && (
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-klyp-gray cursor-pointer select-none" onClick={() => handleSort("creado")}>
-                    Creado<SortIcon k="creado" />
-                  </th>
-                )}
+                {colOrder.filter((k) => visibleCols.has(k)).map((k) => {
+                  if (k === "nombre") return (
+                    <th key={k} className="px-4 py-3 text-left text-xs font-semibold text-klyp-gray cursor-pointer select-none" onClick={() => handleSort("nombre")}>
+                      Nombre<SortIcon k="nombre" />
+                    </th>
+                  );
+                  if (k === "email") return (
+                    <th key={k} className="px-4 py-3 text-left text-xs font-semibold text-klyp-gray cursor-pointer select-none" onClick={() => handleSort("email")}>
+                      Email<SortIcon k="email" />
+                    </th>
+                  );
+                  if (k === "rol") return (
+                    <th key={k} className="px-4 py-3 text-left text-xs font-semibold text-klyp-gray cursor-pointer select-none" onClick={() => handleSort("rol")}>
+                      Rol<SortIcon k="rol" />
+                    </th>
+                  );
+                  if (k === "empresa") return (
+                    <th key={k} className="px-4 py-3 text-left text-xs font-semibold text-klyp-gray cursor-pointer select-none" onClick={() => handleSort("empresa")}>
+                      Empresa<SortIcon k="empresa" />
+                    </th>
+                  );
+                  if (k === "estado") return (
+                    <th key={k} className="px-4 py-3 text-left text-xs font-semibold text-klyp-gray">Estado</th>
+                  );
+                  if (k === "creado") return (
+                    <th key={k} className="px-4 py-3 text-left text-xs font-semibold text-klyp-gray cursor-pointer select-none" onClick={() => handleSort("creado")}>
+                      Creado<SortIcon k="creado" />
+                    </th>
+                  );
+                  return null;
+                })}
                 <th className="px-4 py-3 text-right text-xs font-semibold text-klyp-gray">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filtered.map((u) => (
                 <tr key={u.id} className={`hover:bg-gray-50 transition-colors ${!u.is_active ? "opacity-55" : ""}`}>
-                  {col("nombre") && (
-                    <td className="px-4 py-3 font-medium text-klyp-navy">{u.full_name}</td>
-                  )}
-                  {col("email") && (
-                    <td className="px-4 py-3 text-klyp-gray text-xs">{u.email}</td>
-                  )}
-                  {col("rol") && (
-                    <td className="px-4 py-3">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ROLE_COLORS[u.role] ?? "bg-gray-100 text-gray-600"}`}>
-                        {ROLE_LABELS[u.role] ?? u.role}
-                      </span>
-                    </td>
-                  )}
-                  {col("empresa") && (
-                    <td className="px-4 py-3 text-klyp-gray text-xs">{u.tenant_name ?? "—"}</td>
-                  )}
-                  {col("estado") && (
-                    <td className="px-4 py-3">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${u.is_active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                        {u.is_active ? "Activo" : "Inactivo"}
-                      </span>
-                    </td>
-                  )}
-                  {col("creado") && (
-                    <td className="px-4 py-3 text-klyp-gray text-xs whitespace-nowrap">
-                      {new Date(u.created_at).toLocaleDateString("es-ES")}
-                    </td>
-                  )}
+                  {colOrder.filter((k) => visibleCols.has(k)).map((k) => {
+                    if (k === "nombre") return <td key={k} className="px-4 py-3 font-medium text-klyp-navy">{u.full_name}</td>;
+                    if (k === "email") return <td key={k} className="px-4 py-3 text-klyp-gray text-xs">{u.email}</td>;
+                    if (k === "rol") return (
+                      <td key={k} className="px-4 py-3">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ROLE_COLORS[u.role] ?? "bg-gray-100 text-gray-600"}`}>
+                          {ROLE_LABELS[u.role] ?? u.role}
+                        </span>
+                      </td>
+                    );
+                    if (k === "empresa") return <td key={k} className="px-4 py-3 text-klyp-gray text-xs">{u.tenant_name ?? "—"}</td>;
+                    if (k === "estado") return (
+                      <td key={k} className="px-4 py-3">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${u.is_active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                          {u.is_active ? "Activo" : "Inactivo"}
+                        </span>
+                      </td>
+                    );
+                    if (k === "creado") return (
+                      <td key={k} className="px-4 py-3 text-klyp-gray text-xs whitespace-nowrap">
+                        {new Date(u.created_at).toLocaleDateString("es-ES")}
+                      </td>
+                    );
+                    return null;
+                  })}
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
                       <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => setResetUserId(u.id)} title="Cambiar contraseña">

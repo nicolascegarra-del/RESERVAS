@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ShieldCheck, RefreshCw, CheckCircle, XCircle, ChevronLeft, ChevronRight, SlidersHorizontal, Trash2 } from "lucide-react";
+import { ShieldCheck, RefreshCw, CheckCircle, XCircle, ChevronLeft, ChevronRight, SlidersHorizontal, Trash2, GripVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -58,7 +58,25 @@ const ALL_COLS: { key: ColKey; label: string }[] = [
   { key: "fecha",   label: "Fecha"   },
 ];
 
-const DEFAULT_COLS = new Set<ColKey>(ALL_COLS.map((c) => c.key));
+const ALL_COL_KEYS_ACC = ALL_COLS.map((c) => c.key) as ColKey[];
+const DEFAULT_COLS = new Set<ColKey>(ALL_COL_KEYS_ACC);
+
+function loadAccColState(): { visible: Set<ColKey>; order: ColKey[] } {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed: unknown = JSON.parse(stored);
+      if (Array.isArray(parsed) && typeof parsed[0] === "string") {
+        return { visible: new Set(parsed as ColKey[]), order: [...ALL_COL_KEYS_ACC] };
+      }
+      const s = parsed as { visible?: string[]; order?: string[] };
+      const order = ((s.order ?? ALL_COL_KEYS_ACC) as ColKey[]).filter((k) => ALL_COL_KEYS_ACC.includes(k));
+      for (const k of ALL_COL_KEYS_ACC) { if (!order.includes(k)) order.push(k); }
+      return { visible: new Set((s.visible ?? ALL_COL_KEYS_ACC) as ColKey[]), order };
+    }
+  } catch { /* ignore */ }
+  return { visible: DEFAULT_COLS, order: [...ALL_COL_KEYS_ACC] };
+}
 
 function EventIcon({ type }: { type: string }) {
   if (type === "login_success") return <CheckCircle className="h-4 w-4 text-green-600" />;
@@ -78,24 +96,20 @@ export default function AccessLogsPage() {
 
   // ─── Columnas persistentes ─────────────────────────────────────────────────
   const [visibleCols, setVisibleCols] = useState<Set<ColKey>>(DEFAULT_COLS);
+  const [colOrder, setColOrder] = useState<ColKey[]>([...ALL_COL_KEYS_ACC]);
+  const [dragColKey, setDragColKey] = useState<ColKey | null>(null);
   const [showColMenu, setShowColMenu] = useState(false);
   const colMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) setVisibleCols(new Set(JSON.parse(stored) as ColKey[]));
-    } catch { /* ignora datos corruptos */ }
+    const { visible, order } = loadAccColState();
+    setVisibleCols(visible);
+    setColOrder(order);
   }, []);
 
-  const toggleCol = (key: ColKey) => {
-    setVisibleCols((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) { next.delete(key); } else { next.add(key); }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify([...next]));
-      return next;
-    });
-  };
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ visible: [...visibleCols], order: colOrder }));
+  }, [visibleCols, colOrder]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -105,7 +119,6 @@ export default function AccessLogsPage() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const col = (k: ColKey) => visibleCols.has(k);
   const colSpan = visibleCols.size;
 
   // ─── Datos ────────────────────────────────────────────────────────────────
@@ -228,17 +241,44 @@ export default function AccessLogsPage() {
           </Button>
           {showColMenu && (
             <div className="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10 p-2">
-              {ALL_COLS.map((c) => (
-                <label key={c.key} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 cursor-pointer text-sm">
-                  <input
-                    type="checkbox"
-                    checked={visibleCols.has(c.key)}
-                    onChange={() => toggleCol(c.key)}
-                    className="rounded"
-                  />
-                  {c.label}
-                </label>
-              ))}
+              {colOrder.map((key) => {
+                const c = ALL_COLS.find((x) => x.key === key)!;
+                return (
+                  <div
+                    key={key}
+                    draggable
+                    onDragStart={() => setDragColKey(key)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={() => {
+                      if (!dragColKey || dragColKey === key) return;
+                      setColOrder((prev) => {
+                        const next = [...prev];
+                        const from = next.indexOf(dragColKey);
+                        const to = next.indexOf(key);
+                        next.splice(from, 1);
+                        next.splice(to, 0, dragColKey);
+                        return next;
+                      });
+                      setDragColKey(null);
+                    }}
+                    onDragEnd={() => setDragColKey(null)}
+                    className={`flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 cursor-grab text-sm ${dragColKey === key ? "opacity-50" : ""}`}
+                  >
+                    <GripVertical className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                    <input
+                      type="checkbox"
+                      checked={visibleCols.has(key)}
+                      onChange={() => setVisibleCols((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(key)) { next.delete(key); } else { next.add(key); }
+                        return next;
+                      })}
+                      className="rounded"
+                    />
+                    {c.label}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -250,12 +290,10 @@ export default function AccessLogsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                {col("evento")  && <th className="text-left px-4 py-3 font-medium text-gray-600">Evento</th>}
-                {col("usuario") && <th className="text-left px-4 py-3 font-medium text-gray-600">Usuario</th>}
-                {col("rol")     && <th className="text-left px-4 py-3 font-medium text-gray-600">Rol</th>}
-                {col("ip")      && <th className="text-left px-4 py-3 font-medium text-gray-600">IP</th>}
-                {col("detalle") && <th className="text-left px-4 py-3 font-medium text-gray-600">Detalle</th>}
-                {col("fecha")   && <th className="text-left px-4 py-3 font-medium text-gray-600">Fecha</th>}
+                {colOrder.filter((k) => visibleCols.has(k)).map((k) => {
+                  const label = ALL_COLS.find((c) => c.key === k)?.label ?? k;
+                  return <th key={k} className="text-left px-4 py-3 font-medium text-gray-600">{label}</th>;
+                })}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -273,36 +311,35 @@ export default function AccessLogsPage() {
               )}
               {!loading && items.map((log) => (
                 <tr key={log.id} className="hover:bg-gray-50 transition-colors">
-                  {col("evento") && (
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <EventIcon type={log.event_type} />
-                        <Badge className={`text-xs ${EVENT_COLORS[log.event_type] ?? "bg-gray-100 text-gray-600"}`}>
-                          {EVENT_LABELS[log.event_type] ?? log.event_type}
-                        </Badge>
-                      </div>
-                    </td>
-                  )}
-                  {col("usuario") && <td className="px-4 py-3 font-medium text-gray-800">{log.user_email}</td>}
-                  {col("rol") && (
-                    <td className="px-4 py-3 text-gray-500 text-xs">
-                      {log.user_role ? (ROLE_LABELS[log.user_role] ?? log.user_role) : "—"}
-                    </td>
-                  )}
-                  {col("ip") && (
-                    <td className="px-4 py-3 text-gray-500 text-xs font-mono">{log.ip_address ?? "—"}</td>
-                  )}
-                  {col("detalle") && (
-                    <td className="px-4 py-3 text-gray-400 text-xs">{log.detail ?? "—"}</td>
-                  )}
-                  {col("fecha") && (
-                    <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
-                      {new Date(log.accessed_at).toLocaleString("es-ES", {
-                        day: "2-digit", month: "2-digit", year: "numeric",
-                        hour: "2-digit", minute: "2-digit",
-                      })}
-                    </td>
-                  )}
+                  {colOrder.filter((k) => visibleCols.has(k)).map((k) => {
+                    if (k === "evento") return (
+                      <td key={k} className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <EventIcon type={log.event_type} />
+                          <Badge className={`text-xs ${EVENT_COLORS[log.event_type] ?? "bg-gray-100 text-gray-600"}`}>
+                            {EVENT_LABELS[log.event_type] ?? log.event_type}
+                          </Badge>
+                        </div>
+                      </td>
+                    );
+                    if (k === "usuario") return <td key={k} className="px-4 py-3 font-medium text-gray-800">{log.user_email}</td>;
+                    if (k === "rol") return (
+                      <td key={k} className="px-4 py-3 text-gray-500 text-xs">
+                        {log.user_role ? (ROLE_LABELS[log.user_role] ?? log.user_role) : "—"}
+                      </td>
+                    );
+                    if (k === "ip") return <td key={k} className="px-4 py-3 text-gray-500 text-xs font-mono">{log.ip_address ?? "—"}</td>;
+                    if (k === "detalle") return <td key={k} className="px-4 py-3 text-gray-400 text-xs">{log.detail ?? "—"}</td>;
+                    if (k === "fecha") return (
+                      <td key={k} className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
+                        {new Date(log.accessed_at).toLocaleString("es-ES", {
+                          day: "2-digit", month: "2-digit", year: "numeric",
+                          hour: "2-digit", minute: "2-digit",
+                        })}
+                      </td>
+                    );
+                    return null;
+                  })}
                 </tr>
               ))}
             </tbody>

@@ -26,6 +26,7 @@ from app.models.reservation import Reservation
 from app.models.tenant import Tenant
 from app.schemas.billing import (
     InvoiceCreate,
+    InvoiceCreateManual,
     InvoiceListItem,
     InvoiceRead,
     PaginatedInvoices,
@@ -524,6 +525,211 @@ async def list_invoices(
     pages = math.ceil(total / page_size) if total > 0 else 1
 
     return PaginatedInvoices(items=items, total=total, page=page, pages=pages)
+
+
+# ─── Nuevas operaciones de factura ───────────────────────────────────────────
+
+
+async def get_invoice_or_404(
+    session: AsyncSession,
+    invoice_id: UUID,
+    tenant_id: UUID,
+) -> Invoice:
+    result = await session.exec(
+        select(Invoice).where(Invoice.id == invoice_id, Invoice.tenant_id == tenant_id)
+    )
+    invoice = result.first()
+    if not invoice:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": {"code": "INVOICE_NOT_FOUND", "message": "Factura no encontrada."}},
+        )
+    return invoice
+
+
+async def cancel_invoice(
+    session: AsyncSession,
+    invoice_id: UUID,
+    tenant_id: UUID,
+) -> InvoiceRead:
+    invoice = await get_invoice_or_404(session, invoice_id, tenant_id)
+    if invoice.status == "cancelled":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"error": {"code": "ALREADY_CANCELLED", "message": "La factura ya está cancelada."}},
+        )
+    invoice.status = "cancelled"  # type: ignore[assignment]
+    invoice.updated_at = datetime.utcnow()
+    session.add(invoice)
+    await session.commit()
+    await session.refresh(invoice)
+    return InvoiceRead.model_validate(invoice)
+
+
+async def mark_invoice_sent(
+    session: AsyncSession,
+    invoice_id: UUID,
+    tenant_id: UUID,
+) -> InvoiceRead:
+    invoice = await get_invoice_or_404(session, invoice_id, tenant_id)
+    if invoice.status not in ("issued",):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"error": {"code": "INVALID_STATUS", "message": "Solo se pueden marcar como enviadas las facturas emitidas."}},
+        )
+    invoice.status = "sent"  # type: ignore[assignment]
+    invoice.sent_at = datetime.utcnow()
+    invoice.updated_at = datetime.utcnow()
+    session.add(invoice)
+    await session.commit()
+    await session.refresh(invoice)
+    return InvoiceRead.model_validate(invoice)
+
+
+async def create_credit_note(
+    session: AsyncSession,
+    invoice_id: UUID,
+    tenant_id: UUID,
+) -> InvoiceRead:
+    original = await get_invoice_or_404(session, invoice_id, tenant_id)
+    if original.status not in ("issued", "sent"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"error": {"code": "INVALID_STATUS", "message": "Solo se pueden rectificar facturas emitidas o enviadas."}},
+        )
+    if original.is_credit_note:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"error": {"code": "IS_CREDIT_NOTE", "message": "No se puede rectificar una nota de crédito."}},
+        )
+
+    # Cancelar la original
+    original.status = "cancelled"  # type: ignore[assignment]
+    original.updated_at = datetime.utcnow()
+    session.add(original)
+
+    # Invertir líneas (amounts negativos)
+    _cent = Decimal("0.01")
+    rectified_lines = []
+    for line in original.lines:
+        rectified_lines.append({
+            **line,
+            "unit_price_net": str(-Decimal(str(line.get("unit_price_net", 0))).quantize(_cent)),
+            "iva_amount": str(-Decimal(str(line.get("iva_amount", 0))).quantize(_cent)),
+            "line_total_net": str(-Decimal(str(line.get("line_total_net", 0))).quantize(_cent)),
+            "line_total_with_iva": str(-Decimal(str(line.get("line_total_with_iva", 0))).quantize(_cent)),
+        })
+
+    year = datetime.utcnow().year
+    # Secuencia propia con serie RECT
+    result = await session.exec(
+        select(InvoiceSequence)
+        .where(InvoiceSequence.tenant_id == tenant_id, InvoiceSequence.year == year)
+        .with_for_update()
+    )
+    seq = result.first()
+    if not seq:
+        seq = InvoiceSequence(tenant_id=tenant_id, year=year, last_sequence=0, invoice_series="RECT")
+    seq.last_sequence += 1
+    seq.invoice_series = "RECT"
+    session.add(seq)
+    await session.flush()
+
+    invoice_number = f"RECT-{year}-{seq.last_sequence:04d}"
+    now = datetime.utcnow()
+    credit_note = Invoice(
+        tenant_id=tenant_id,
+        reservation_id=original.reservation_id,
+        invoice_number=invoice_number,
+        invoice_series="RECT",
+        invoice_year=year,
+        invoice_sequence=seq.last_sequence,
+        status="issued",  # type: ignore[assignment]
+        is_credit_note=True,
+        credit_note_for_id=original.id,
+        issuer_name=original.issuer_name,
+        issuer_cif=original.issuer_cif,
+        issuer_address=original.issuer_address,
+        recipient_name=original.recipient_name,
+        recipient_nif=original.recipient_nif,
+        recipient_address=original.recipient_address,
+        recipient_email=original.recipient_email,
+        lines=rectified_lines,
+        base_imponible=-original.base_imponible,
+        total_iva=-original.total_iva,
+        total_with_iva=-original.total_with_iva,
+        currency=original.currency,
+        payment_method_name=original.payment_method_name,
+        issued_at=now,
+        created_at=now,
+        updated_at=now,
+    )
+    session.add(credit_note)
+    await session.commit()
+    await session.refresh(credit_note)
+    return InvoiceRead.model_validate(credit_note)
+
+
+async def create_manual_invoice(
+    session: AsyncSession,
+    data: InvoiceCreateManual,
+    tenant_id: UUID,
+) -> InvoiceRead:
+    tenant = await session.get(Tenant, tenant_id)
+    if not tenant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": {"code": "TENANT_NOT_FOUND", "message": "Empresa no encontrada."}},
+        )
+
+    _cent = Decimal("0.01")
+    lines = data.lines
+    base_imponible = Decimal("0.00")
+    total_iva = Decimal("0.00")
+    for line in lines:
+        base_imponible += Decimal(str(line.get("line_total_net", 0))).quantize(_cent)
+        total_iva += Decimal(str(line.get("iva_amount", 0))).quantize(_cent)
+    total_with_iva = base_imponible + total_iva
+
+    year = datetime.utcnow().year
+    sequence_number, series = await get_next_invoice_sequence(session, tenant_id, year)
+    if data.invoice_series != "FAC":
+        series = data.invoice_series
+    invoice_number = f"{series}-{year}-{sequence_number:04d}"
+
+    issuer_address_parts = [
+        p for p in [tenant.address, tenant.postal_code, tenant.municipality, tenant.province] if p
+    ]
+    now = datetime.utcnow()
+    invoice = Invoice(
+        tenant_id=tenant_id,
+        reservation_id=None,
+        invoice_number=invoice_number,
+        invoice_series=series,
+        invoice_year=year,
+        invoice_sequence=sequence_number,
+        status="issued",  # type: ignore[assignment]
+        issuer_name=tenant.legal_name or tenant.name,
+        issuer_cif=tenant.cif,
+        issuer_address=", ".join(issuer_address_parts) if issuer_address_parts else None,
+        recipient_name=data.recipient_name,
+        recipient_nif=data.recipient_nif,
+        recipient_address=data.recipient_address,
+        recipient_email=data.recipient_email,
+        lines=lines,
+        base_imponible=base_imponible,
+        total_iva=total_iva,
+        total_with_iva=total_with_iva,
+        currency="EUR",
+        payment_method_name=data.payment_method_name,
+        issued_at=now,
+        created_at=now,
+        updated_at=now,
+    )
+    session.add(invoice)
+    await session.commit()
+    await session.refresh(invoice)
+    return InvoiceRead.model_validate(invoice)
 
 
 # ─── Helpers internos ─────────────────────────────────────────────────────────

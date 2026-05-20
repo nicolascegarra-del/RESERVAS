@@ -12,7 +12,9 @@ El super_admin puede operar sobre cualquier tenant pasando ?tenant_id=<uuid>.
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi.responses import StreamingResponse
+import io
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -22,6 +24,7 @@ from app.models.billing import Invoice
 from app.models.user import User, UserRole
 from app.schemas.billing import (
     InvoiceCreate,
+    InvoiceCreateManual,
     InvoiceRead,
     PaginatedInvoices,
     PaymentMethodCreate,
@@ -265,3 +268,110 @@ async def list_invoices(
         page_size=page_size,
         status_filter=invoice_status,
     )
+
+
+@router.post(
+    "/billing/invoices/manual",
+    response_model=InvoiceRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Crear factura manual",
+    description="Crea una factura sin reserva asociada (cliente directo).",
+)
+async def create_manual_invoice(
+    data: InvoiceCreateManual,
+    current_user: ManageDep,
+    session: SessionDep,
+    tenant_id: UUID | None = Query(default=None, description="Solo para super_admin"),
+) -> InvoiceRead:
+    effective_tenant_id = _resolve_tenant_id(current_user, tenant_id)
+    return await billing_service.create_manual_invoice(session, data, effective_tenant_id)
+
+
+@router.get(
+    "/billing/invoices/{invoice_id}",
+    response_model=InvoiceRead,
+    summary="Obtener factura por ID",
+)
+async def get_invoice(
+    invoice_id: UUID,
+    current_user: ManageDep,
+    session: SessionDep,
+    tenant_id: UUID | None = Query(default=None, description="Solo para super_admin"),
+) -> InvoiceRead:
+    effective_tenant_id = _resolve_tenant_id(current_user, tenant_id)
+    invoice = await billing_service.get_invoice_or_404(session, invoice_id, effective_tenant_id)
+    return InvoiceRead.model_validate(invoice)
+
+
+@router.get(
+    "/billing/invoices/{invoice_id}/pdf",
+    summary="Descargar PDF de factura",
+    response_class=StreamingResponse,
+)
+async def download_invoice_pdf(
+    invoice_id: UUID,
+    current_user: ManageDep,
+    session: SessionDep,
+    tenant_id: UUID | None = Query(default=None, description="Solo para super_admin"),
+) -> StreamingResponse:
+    from app.services.pdf_service import generate_invoice_pdf
+
+    effective_tenant_id = _resolve_tenant_id(current_user, tenant_id)
+    invoice = await billing_service.get_invoice_or_404(session, invoice_id, effective_tenant_id)
+    pdf_bytes = generate_invoice_pdf(invoice)
+    filename = f"{invoice.invoice_number}.pdf"
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post(
+    "/billing/invoices/{invoice_id}/cancel",
+    response_model=InvoiceRead,
+    summary="Cancelar factura",
+)
+async def cancel_invoice(
+    invoice_id: UUID,
+    current_user: ManageDep,
+    session: SessionDep,
+    tenant_id: UUID | None = Query(default=None, description="Solo para super_admin"),
+) -> InvoiceRead:
+    effective_tenant_id = _resolve_tenant_id(current_user, tenant_id)
+    return await billing_service.cancel_invoice(session, invoice_id, effective_tenant_id)
+
+
+@router.post(
+    "/billing/invoices/{invoice_id}/mark-sent",
+    response_model=InvoiceRead,
+    summary="Marcar factura como enviada",
+)
+async def mark_invoice_sent(
+    invoice_id: UUID,
+    current_user: ManageDep,
+    session: SessionDep,
+    tenant_id: UUID | None = Query(default=None, description="Solo para super_admin"),
+) -> InvoiceRead:
+    effective_tenant_id = _resolve_tenant_id(current_user, tenant_id)
+    return await billing_service.mark_invoice_sent(session, invoice_id, effective_tenant_id)
+
+
+@router.post(
+    "/billing/invoices/{invoice_id}/credit-note",
+    response_model=InvoiceRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Emitir nota de crédito (factura rectificativa)",
+    description=(
+        "Genera una factura rectificativa (RECT) con importes negativos, "
+        "cancela la factura original y la vincula mediante credit_note_for_id."
+    ),
+)
+async def create_credit_note(
+    invoice_id: UUID,
+    current_user: ManageDep,
+    session: SessionDep,
+    tenant_id: UUID | None = Query(default=None, description="Solo para super_admin"),
+) -> InvoiceRead:
+    effective_tenant_id = _resolve_tenant_id(current_user, tenant_id)
+    return await billing_service.create_credit_note(session, invoice_id, effective_tenant_id)

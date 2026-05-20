@@ -84,7 +84,7 @@ class ReservationPaymentRead(BaseModel):
 
 
 class InvoiceCreate(BaseModel):
-    """Datos del receptor para generar una factura."""
+    """Datos del receptor para generar una factura desde una reserva."""
 
     recipient_name: str = Field(min_length=1, max_length=255)
     recipient_nif: str | None = Field(default=None, max_length=30)
@@ -92,15 +92,29 @@ class InvoiceCreate(BaseModel):
     recipient_email: str | None = Field(default=None, max_length=254)
 
 
+class InvoiceCreateManual(BaseModel):
+    """Datos para crear una factura manual (sin reserva asociada)."""
+
+    recipient_name: str = Field(min_length=1, max_length=255)
+    recipient_nif: str | None = Field(default=None, max_length=30)
+    recipient_address: str | None = None
+    recipient_email: str | None = Field(default=None, max_length=254)
+    lines: list[dict] = Field(default_factory=list)
+    payment_method_name: str | None = Field(default=None, max_length=200)
+    invoice_series: str = Field(default="FAC", max_length=20)
+
+
 class InvoiceRead(BaseModel):
     id: UUID
     tenant_id: UUID
-    reservation_id: UUID
+    reservation_id: UUID | None
     invoice_number: str
     invoice_series: str
     invoice_year: int
     invoice_sequence: int
     status: InvoiceStatus
+    is_credit_note: bool
+    credit_note_for_id: UUID | None
     issuer_name: str | None
     issuer_cif: str | None
     issuer_address: str | None
@@ -128,9 +142,13 @@ class InvoiceListItem(BaseModel):
 
     id: UUID
     invoice_number: str
-    reservation_id: UUID
+    reservation_id: UUID | None
+    is_credit_note: bool
+    credit_note_for_id: UUID | None
     status: InvoiceStatus
     recipient_name: str
+    base_imponible: Decimal
+    total_iva: Decimal
     total_with_iva: Decimal
     issued_at: datetime
     created_at: datetime

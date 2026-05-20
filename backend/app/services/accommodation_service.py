@@ -15,12 +15,19 @@ from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.accommodation import (
+    AccommodationPhoto,
+    AccommodationPriceRule,
     AccommodationType,
     AccommodationUnit,
     Extra,
     FieldDefinition,
 )
 from app.schemas.accommodation import (
+    AccommodationPhotoRead,
+    AccommodationPhotoUpdate,
+    AccommodationPriceRuleCreate,
+    AccommodationPriceRuleRead,
+    AccommodationPriceRuleUpdate,
     AccommodationTypeCreate,
     AccommodationTypeRead,
     AccommodationTypeSummary,
@@ -718,6 +725,10 @@ async def create_extra(
         tenant_id=tenant_id,
         name=data.name,
         description=data.description,
+        iva_rate=data.iva_rate,
+        price=data.price,
+        multiplier_type=data.multiplier_type,
+        multiplier_label=data.multiplier_label,
     )
     session.add(extra)
     await session.commit()
@@ -785,3 +796,193 @@ async def delete_extra(
     extra.is_active = False
     session.add(extra)
     await session.commit()
+
+
+# ─── AccommodationPriceRule ───────────────────────────────────────────────────
+
+
+async def _get_price_rule(
+    session: AsyncSession,
+    rule_id: UUID,
+    tenant_id: UUID,
+) -> AccommodationPriceRule:
+    result = await session.exec(
+        select(AccommodationPriceRule).where(
+            AccommodationPriceRule.id == rule_id,
+            AccommodationPriceRule.tenant_id == tenant_id,
+        )
+    )
+    rule = result.first()
+    if not rule:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": {
+                    "code": "PRICE_RULE_NOT_FOUND",
+                    "message": f"Regla de precio {rule_id} no encontrada.",
+                }
+            },
+        )
+    return rule
+
+
+async def list_price_rules(
+    session: AsyncSession,
+    type_id: UUID,
+    tenant_id: UUID,
+) -> list[AccommodationPriceRuleRead]:
+    await get_accommodation_type(session, type_id, tenant_id)
+    result = await session.exec(
+        select(AccommodationPriceRule).where(
+            AccommodationPriceRule.accommodation_type_id == type_id,
+            AccommodationPriceRule.tenant_id == tenant_id,
+        ).order_by(AccommodationPriceRule.priority.desc(), AccommodationPriceRule.date_from)
+    )
+    return [AccommodationPriceRuleRead.model_validate(r) for r in result.all()]
+
+
+async def create_price_rule(
+    session: AsyncSession,
+    type_id: UUID,
+    data: AccommodationPriceRuleCreate,
+    tenant_id: UUID,
+) -> AccommodationPriceRuleRead:
+    await get_accommodation_type(session, type_id, tenant_id)
+    from uuid import uuid4
+    rule = AccommodationPriceRule(
+        id=uuid4(),
+        tenant_id=tenant_id,
+        accommodation_type_id=type_id,
+        name=data.name,
+        date_from=data.date_from,
+        date_to=data.date_to,
+        price_per_night=data.price_per_night,
+        min_nights=data.min_nights,
+        priority=data.priority,
+        is_active=data.is_active,
+    )
+    session.add(rule)
+    await session.commit()
+    await session.refresh(rule)
+    return AccommodationPriceRuleRead.model_validate(rule)
+
+
+async def update_price_rule(
+    session: AsyncSession,
+    rule_id: UUID,
+    data: AccommodationPriceRuleUpdate,
+    tenant_id: UUID,
+) -> AccommodationPriceRuleRead:
+    rule = await _get_price_rule(session, rule_id, tenant_id)
+    for field, value in data.model_dump(exclude_none=True).items():
+        setattr(rule, field, value)
+    session.add(rule)
+    await session.commit()
+    await session.refresh(rule)
+    return AccommodationPriceRuleRead.model_validate(rule)
+
+
+async def delete_price_rule(
+    session: AsyncSession,
+    rule_id: UUID,
+    tenant_id: UUID,
+) -> None:
+    rule = await _get_price_rule(session, rule_id, tenant_id)
+    await session.delete(rule)
+    await session.commit()
+
+
+# ─── AccommodationPhoto ───────────────────────────────────────────────────────
+
+
+async def _get_photo(
+    session: AsyncSession,
+    photo_id: UUID,
+    tenant_id: UUID,
+) -> AccommodationPhoto:
+    result = await session.exec(
+        select(AccommodationPhoto).where(
+            AccommodationPhoto.id == photo_id,
+            AccommodationPhoto.tenant_id == tenant_id,
+        )
+    )
+    photo = result.first()
+    if not photo:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": {
+                    "code": "PHOTO_NOT_FOUND",
+                    "message": f"Foto {photo_id} no encontrada.",
+                }
+            },
+        )
+    return photo
+
+
+async def list_photos(
+    session: AsyncSession,
+    type_id: UUID,
+    tenant_id: UUID,
+) -> list[AccommodationPhotoRead]:
+    await get_accommodation_type(session, type_id, tenant_id)
+    result = await session.exec(
+        select(AccommodationPhoto).where(
+            AccommodationPhoto.accommodation_type_id == type_id,
+            AccommodationPhoto.tenant_id == tenant_id,
+        ).order_by(AccommodationPhoto.sort_order, AccommodationPhoto.created_at)
+    )
+    return [AccommodationPhotoRead.model_validate(p) for p in result.all()]
+
+
+async def create_photo(
+    session: AsyncSession,
+    type_id: UUID,
+    file_url: str,
+    file_key: str,
+    tenant_id: UUID,
+    caption: str | None = None,
+    sort_order: int = 0,
+) -> AccommodationPhotoRead:
+    from uuid import uuid4
+    photo = AccommodationPhoto(
+        id=uuid4(),
+        tenant_id=tenant_id,
+        accommodation_type_id=type_id,
+        file_url=file_url,
+        file_key=file_key,
+        caption=caption,
+        sort_order=sort_order,
+    )
+    session.add(photo)
+    await session.commit()
+    await session.refresh(photo)
+    return AccommodationPhotoRead.model_validate(photo)
+
+
+async def update_photo(
+    session: AsyncSession,
+    photo_id: UUID,
+    data: AccommodationPhotoUpdate,
+    tenant_id: UUID,
+) -> AccommodationPhotoRead:
+    photo = await _get_photo(session, photo_id, tenant_id)
+    for field, value in data.model_dump(exclude_none=True).items():
+        setattr(photo, field, value)
+    session.add(photo)
+    await session.commit()
+    await session.refresh(photo)
+    return AccommodationPhotoRead.model_validate(photo)
+
+
+async def delete_photo(
+    session: AsyncSession,
+    photo_id: UUID,
+    tenant_id: UUID,
+) -> str | None:
+    """Returns file_key for MinIO deletion, or None if already gone."""
+    photo = await _get_photo(session, photo_id, tenant_id)
+    file_key = photo.file_key
+    await session.delete(photo)
+    await session.commit()
+    return file_key

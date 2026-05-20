@@ -6,6 +6,7 @@ import {
   Plus, Pencil, Trash2, Users, Building2, Loader2,
   PauseCircle, PlayCircle, ChevronUp, ChevronDown, SlidersHorizontal,
   Upload, AlertTriangle, CreditCard, Mail, Info, LogIn, Globe,
+  GripVertical, Palette, Save,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TenantUsersDialog } from "./TenantUsersDialog";
 
 const API_URL = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:8000";
+const HEX_RE = /^#[0-9A-Fa-f]{6}$/;
 
 // ─── Formulario compartido ────────────────────────────────────────────────────
 
@@ -453,6 +455,16 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [branding, setBranding] = useState({
+    brand_name: tenant.brand_name ?? "",
+    tagline: tenant.tagline ?? "",
+    primary_color: tenant.primary_color ?? "",
+    accent_color: tenant.accent_color ?? "",
+  });
+  const [savingBranding, setSavingBranding] = useState(false);
+  const [brandingSuccess, setBrandingSuccess] = useState(false);
+  const [brandingError, setBrandingError] = useState<string | null>(null);
+
   useEffect(() => {
     if (!open) return;
     setLoadingConfig(true);
@@ -561,6 +573,24 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
     } finally { setSaving(false); }
   };
 
+  const handleSaveBranding = async () => {
+    setSavingBranding(true); setBrandingError(null); setBrandingSuccess(false);
+    try {
+      const payload = {
+        brand_name: branding.brand_name || null,
+        tagline: branding.tagline || null,
+        primary_color: HEX_RE.test(branding.primary_color) ? branding.primary_color : null,
+        accent_color: HEX_RE.test(branding.accent_color) ? branding.accent_color : null,
+      };
+      const res = await tenantsApi.update(tenant.id, payload);
+      onUpdated(res.data);
+      setBrandingSuccess(true);
+      setTimeout(() => setBrandingSuccess(false), 3000);
+    } catch {
+      setBrandingError("No se pudo guardar el branding.");
+    } finally { setSavingBranding(false); }
+  };
+
   const cfgField = (key: ConfigStringKey) => ({
     value: String(config[key]),
     onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -592,7 +622,7 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
 
         <div className="px-6 pb-6 pt-4">
           <Tabs defaultValue="general" className="w-full">
-            <TabsList className="w-full mb-4 grid grid-cols-4 h-auto p-1">
+            <TabsList className="w-full mb-4 grid grid-cols-5 h-auto p-1">
               <TabsTrigger value="general" className="flex items-center gap-1.5 py-2 text-xs sm:text-sm">
                 <Building2 className="h-3.5 w-3.5 shrink-0" />
                 <span>General</span>
@@ -611,6 +641,10 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
                 <CreditCard className="h-3.5 w-3.5 shrink-0" />
                 <span>Redsys</span>
                 {config.redsys_enabled && <span className="hidden sm:inline-block h-1.5 w-1.5 rounded-full bg-green-500 ml-0.5" />}
+              </TabsTrigger>
+              <TabsTrigger value="branding" className="flex items-center gap-1.5 py-2 text-xs sm:text-sm">
+                <Palette className="h-3.5 w-3.5 shrink-0" />
+                <span>Branding</span>
               </TabsTrigger>
             </TabsList>
 
@@ -850,6 +884,121 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
                 </>
               )}
             </TabsContent>
+
+            {/* ── Branding ── */}
+            <TabsContent value="branding" className="space-y-5 mt-0">
+              {/* Live preview bar */}
+              <div className="rounded-xl border border-gray-200 overflow-hidden">
+                <div
+                  className="h-10 flex items-center px-4 gap-3"
+                  style={{ backgroundColor: HEX_RE.test(branding.primary_color) ? branding.primary_color : "#051937" }}
+                >
+                  <div
+                    className="h-5 w-5 rounded-full border-2 border-white/40"
+                    style={{ backgroundColor: HEX_RE.test(branding.accent_color) ? branding.accent_color : "#2E6DB4" }}
+                  />
+                  <span className="text-white text-sm font-semibold truncate">
+                    {branding.brand_name || tenant.name}
+                  </span>
+                  {branding.tagline && (
+                    <span className="text-white/60 text-xs truncate">{branding.tagline}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Logo upload (re-uses the same input/handler) */}
+              <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                <div className="h-14 w-14 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center bg-white overflow-hidden shrink-0">
+                  {!logoPreview && <Building2 className="h-5 w-5 text-gray-300" />}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {logoPreview && <img src={logoPreview} alt="Logo" className="h-full w-full object-contain" />}
+                </div>
+                <div>
+                  <Button variant="outline" size="sm" disabled={uploadingLogo} onClick={() => fileInputRef.current?.click()}>
+                    {uploadingLogo ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+                    {uploadingLogo ? "Subiendo..." : "Cambiar Logo"}
+                  </Button>
+                  <p className="text-xs text-klyp-gray mt-1">PNG, JPEG, WebP o SVG</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Nombre de marca */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Nombre de marca</Label>
+                  <Input
+                    placeholder={tenant.name}
+                    value={branding.brand_name}
+                    onChange={(e) => setBranding((p) => ({ ...p, brand_name: e.target.value }))}
+                  />
+                </div>
+                {/* Tagline */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Tagline</Label>
+                  <Input
+                    placeholder="Slogan corto..."
+                    value={branding.tagline}
+                    onChange={(e) => setBranding((p) => ({ ...p, tagline: e.target.value }))}
+                  />
+                </div>
+                {/* Color primario */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Color primario</Label>
+                  <div className="flex gap-2">
+                    <input
+                      type="color"
+                      value={HEX_RE.test(branding.primary_color) ? branding.primary_color : "#051937"}
+                      onChange={(e) => setBranding((p) => ({ ...p, primary_color: e.target.value }))}
+                      className="h-10 w-10 cursor-pointer rounded-md border border-input bg-transparent p-0.5 shrink-0"
+                    />
+                    <Input
+                      placeholder="#051937"
+                      value={branding.primary_color}
+                      onChange={(e) => setBranding((p) => ({ ...p, primary_color: e.target.value }))}
+                      className="font-mono"
+                    />
+                  </div>
+                  {branding.primary_color && !HEX_RE.test(branding.primary_color) && (
+                    <p className="text-xs text-red-500">Formato incorrecto (ej: #051937)</p>
+                  )}
+                </div>
+                {/* Color de acento */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Color de acento</Label>
+                  <div className="flex gap-2">
+                    <input
+                      type="color"
+                      value={HEX_RE.test(branding.accent_color) ? branding.accent_color : "#2E6DB4"}
+                      onChange={(e) => setBranding((p) => ({ ...p, accent_color: e.target.value }))}
+                      className="h-10 w-10 cursor-pointer rounded-md border border-input bg-transparent p-0.5 shrink-0"
+                    />
+                    <Input
+                      placeholder="#2E6DB4"
+                      value={branding.accent_color}
+                      onChange={(e) => setBranding((p) => ({ ...p, accent_color: e.target.value }))}
+                      className="font-mono"
+                    />
+                  </div>
+                  {branding.accent_color && !HEX_RE.test(branding.accent_color) && (
+                    <p className="text-xs text-red-500">Formato incorrecto (ej: #2E6DB4)</p>
+                  )}
+                </div>
+              </div>
+
+              {brandingError && <p className="text-sm text-red-600">{brandingError}</p>}
+              {brandingSuccess && <p className="text-sm text-green-600">Branding guardado correctamente.</p>}
+
+              <div className="flex justify-end pt-2">
+                <Button
+                  onClick={() => void handleSaveBranding()}
+                  disabled={savingBranding}
+                  className="bg-klyp-accent hover:bg-klyp-accent/90 text-white"
+                >
+                  {savingBranding ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                  {savingBranding ? "Guardando..." : "Guardar Branding"}
+                </Button>
+              </div>
+            </TabsContent>
           </Tabs>
 
           {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
@@ -949,6 +1098,28 @@ const ALL_COLS: { key: ColKey; label: string }[] = [
 ];
 
 const DEFAULT_COLS_EMPRESAS = new Set<ColKey>(ALL_COLS.map((c) => c.key));
+const ALL_COL_KEYS = ALL_COLS.map((c) => c.key) as ColKey[];
+
+function loadEmpresasColState(): { visible: Set<ColKey>; order: ColKey[] } {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_EMPRESAS);
+    if (stored) {
+      const parsed: unknown = JSON.parse(stored);
+      if (Array.isArray(parsed) && typeof parsed[0] === "string") {
+        return { visible: new Set(parsed as ColKey[]), order: [...ALL_COL_KEYS] };
+      }
+      const s = parsed as { visible?: string[]; order?: string[] };
+      const order = ((s.order ?? ALL_COL_KEYS) as ColKey[]).filter((k) => ALL_COL_KEYS.includes(k));
+      for (const k of ALL_COL_KEYS) { if (!order.includes(k)) order.push(k); }
+      return { visible: new Set((s.visible ?? ALL_COL_KEYS) as ColKey[]), order };
+    }
+  } catch { /* ignore */ }
+  return { visible: DEFAULT_COLS_EMPRESAS, order: [...ALL_COL_KEYS] };
+}
+
+function saveEmpresasColState(order: ColKey[], visible: Set<ColKey>) {
+  localStorage.setItem(STORAGE_KEY_EMPRESAS, JSON.stringify({ visible: [...visible], order }));
+}
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 
@@ -968,6 +1139,7 @@ export default function EmpresasPage() {
   const [filterState, setFilterState] = useState<"all" | "active" | "suspended">("all");
 
   const [visibleCols, setVisibleCols] = useState<Set<ColKey>>(DEFAULT_COLS_EMPRESAS);
+  const [colOrder, setColOrder] = useState<ColKey[]>([...ALL_COL_KEYS]);
   const [showColMenu, setShowColMenu] = useState(false);
   const colMenuRef = useRef<HTMLDivElement>(null);
 
@@ -986,10 +1158,9 @@ export default function EmpresasPage() {
   useEffect(() => { void fetchTenants(); }, [fetchTenants]);
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY_EMPRESAS);
-      if (stored) setVisibleCols(new Set(JSON.parse(stored) as ColKey[]));
-    } catch { /* ignora datos corruptos */ }
+    const { visible, order } = loadEmpresasColState();
+    setVisibleCols(visible);
+    setColOrder(order);
   }, []);
 
   useEffect(() => {
@@ -1076,22 +1247,46 @@ export default function EmpresasPage() {
           </Button>
           {showColMenu && (
             <div className="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10 p-2">
-              {ALL_COLS.map((c) => (
-                <label key={c.key} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 cursor-pointer text-sm">
-                  <input
-                    type="checkbox"
-                    checked={visibleCols.has(c.key)}
-                    onChange={() => setVisibleCols((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(c.key)) { next.delete(c.key); } else { next.add(c.key); }
-                      localStorage.setItem(STORAGE_KEY_EMPRESAS, JSON.stringify([...next]));
-                      return next;
-                    })}
-                    className="rounded"
-                  />
-                  {c.label}
-                </label>
-              ))}
+              {colOrder.map((key) => {
+                const c = ALL_COLS.find((x) => x.key === key)!;
+                return (
+                  <label
+                    key={c.key}
+                    draggable
+                    onDragStart={(e) => { e.dataTransfer.setData("text/plain", c.key); e.dataTransfer.effectAllowed = "move"; }}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const fromKey = e.dataTransfer.getData("text/plain") as ColKey;
+                      if (fromKey === c.key) return;
+                      setColOrder((prev) => {
+                        const next = [...prev];
+                        const fromIdx = next.indexOf(fromKey);
+                        const toIdx = next.indexOf(c.key);
+                        next.splice(fromIdx, 1);
+                        next.splice(toIdx, 0, fromKey);
+                        saveEmpresasColState(next, visibleCols);
+                        return next;
+                      });
+                    }}
+                    className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 cursor-pointer text-sm select-none"
+                  >
+                    <GripVertical className="h-4 w-4 text-gray-300 shrink-0 cursor-grab" />
+                    <input
+                      type="checkbox"
+                      checked={visibleCols.has(c.key)}
+                      onChange={() => setVisibleCols((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(c.key)) { next.delete(c.key); } else { next.add(c.key); }
+                        saveEmpresasColState(colOrder, next);
+                        return next;
+                      })}
+                      className="rounded"
+                    />
+                    {c.label}
+                  </label>
+                );
+              })}
             </div>
           )}
         </div>
@@ -1110,75 +1305,69 @@ export default function EmpresasPage() {
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                {col("logo") && <th className="px-4 py-3 text-left text-xs font-semibold text-klyp-gray w-14">Logo</th>}
-                {col("nombre") && (
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-klyp-gray cursor-pointer select-none" onClick={() => handleSort("nombre")}>
-                    Nombre<SortIcon k="nombre" />
-                  </th>
-                )}
-                {col("cif") && <th className="px-4 py-3 text-left text-xs font-semibold text-klyp-gray">CIF</th>}
-                {col("municipio") && (
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-klyp-gray cursor-pointer select-none" onClick={() => handleSort("municipio")}>
-                    Municipio<SortIcon k="municipio" />
-                  </th>
-                )}
-                {col("estado") && <th className="px-4 py-3 text-left text-xs font-semibold text-klyp-gray">Estado</th>}
-                {col("stripe") && <th className="px-4 py-3 text-left text-xs font-semibold text-klyp-gray">Stripe</th>}
-                {col("smtp") && <th className="px-4 py-3 text-left text-xs font-semibold text-klyp-gray">SMTP</th>}
-                {col("creada") && (
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-klyp-gray cursor-pointer select-none" onClick={() => handleSort("creada")}>
-                    Creada<SortIcon k="creada" />
-                  </th>
-                )}
+                {colOrder.filter(k => visibleCols.has(k)).map(k => {
+                  if (k === "logo") return <th key="logo" className="px-4 py-3 text-left text-xs font-semibold text-klyp-gray w-14">Logo</th>;
+                  if (k === "nombre") return <th key="nombre" className="px-4 py-3 text-left text-xs font-semibold text-klyp-gray cursor-pointer select-none" onClick={() => handleSort("nombre")}>Nombre<SortIcon k="nombre" /></th>;
+                  if (k === "cif") return <th key="cif" className="px-4 py-3 text-left text-xs font-semibold text-klyp-gray">CIF</th>;
+                  if (k === "municipio") return <th key="municipio" className="px-4 py-3 text-left text-xs font-semibold text-klyp-gray cursor-pointer select-none" onClick={() => handleSort("municipio")}>Municipio<SortIcon k="municipio" /></th>;
+                  if (k === "estado") return <th key="estado" className="px-4 py-3 text-left text-xs font-semibold text-klyp-gray">Estado</th>;
+                  if (k === "stripe") return <th key="stripe" className="px-4 py-3 text-left text-xs font-semibold text-klyp-gray">Stripe</th>;
+                  if (k === "smtp") return <th key="smtp" className="px-4 py-3 text-left text-xs font-semibold text-klyp-gray">SMTP</th>;
+                  if (k === "creada") return <th key="creada" className="px-4 py-3 text-left text-xs font-semibold text-klyp-gray cursor-pointer select-none" onClick={() => handleSort("creada")}>Creada<SortIcon k="creada" /></th>;
+                  return null;
+                })}
                 <th className="px-4 py-3 text-right text-xs font-semibold text-klyp-gray">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filtered.map((t) => (
                 <tr key={t.id} className={`hover:bg-gray-50 transition-colors ${!t.is_active ? "opacity-55" : ""}`}>
-                  {col("logo") && (
-                    <td className="px-4 py-3">
-                      <div className="h-9 w-9 rounded-md border border-gray-100 bg-gray-50 flex items-center justify-center overflow-hidden">
-                        {!t.logo_url && <Building2 className="h-4 w-4 text-gray-300" />}
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        {t.logo_url && <img src={`${API_URL}${t.logo_url}`} alt={t.name} className="h-full w-full object-contain" />}
-                      </div>
-                    </td>
-                  )}
-                  {col("nombre") && (
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-klyp-navy">{t.name}</p>
-                      <p className="text-xs text-klyp-gray">{t.slug}</p>
-                    </td>
-                  )}
-                  {col("cif") && <td className="px-4 py-3 text-klyp-gray">{t.cif ?? "—"}</td>}
-                  {col("municipio") && <td className="px-4 py-3 text-klyp-gray">{t.municipality ?? "—"}</td>}
-                  {col("estado") && (
-                    <td className="px-4 py-3">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${t.is_active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                        {t.is_active ? "Activa" : "Suspendida"}
-                      </span>
-                    </td>
-                  )}
-                  {col("stripe") && (
-                    <td className="px-4 py-3">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${t.stripe_enabled ? "bg-purple-100 text-purple-700" : "bg-gray-100 text-gray-500"}`}>
-                        {t.stripe_enabled ? "Activo" : "No"}
-                      </span>
-                    </td>
-                  )}
-                  {col("smtp") && (
-                    <td className="px-4 py-3">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${t.smtp_enabled ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500"}`}>
-                        {t.smtp_enabled ? "Activo" : "No"}
-                      </span>
-                    </td>
-                  )}
-                  {col("creada") && (
-                    <td className="px-4 py-3 text-klyp-gray text-xs whitespace-nowrap">
-                      {new Date(t.created_at).toLocaleDateString("es-ES")}
-                    </td>
-                  )}
+                  {colOrder.filter(k => visibleCols.has(k)).map(k => {
+                    if (k === "logo") return (
+                      <td key="logo" className="px-4 py-3">
+                        <div className="h-9 w-9 rounded-md border border-gray-100 bg-gray-50 flex items-center justify-center overflow-hidden">
+                          {!t.logo_url && <Building2 className="h-4 w-4 text-gray-300" />}
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          {t.logo_url && <img src={`${API_URL}${t.logo_url}`} alt={t.name} className="h-full w-full object-contain" />}
+                        </div>
+                      </td>
+                    );
+                    if (k === "nombre") return (
+                      <td key="nombre" className="px-4 py-3">
+                        <p className="font-medium text-klyp-navy">{t.name}</p>
+                        <p className="text-xs text-klyp-gray">{t.slug}</p>
+                      </td>
+                    );
+                    if (k === "cif") return <td key="cif" className="px-4 py-3 text-klyp-gray">{t.cif ?? "—"}</td>;
+                    if (k === "municipio") return <td key="municipio" className="px-4 py-3 text-klyp-gray">{t.municipality ?? "—"}</td>;
+                    if (k === "estado") return (
+                      <td key="estado" className="px-4 py-3">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${t.is_active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                          {t.is_active ? "Activa" : "Suspendida"}
+                        </span>
+                      </td>
+                    );
+                    if (k === "stripe") return (
+                      <td key="stripe" className="px-4 py-3">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${t.stripe_enabled ? "bg-purple-100 text-purple-700" : "bg-gray-100 text-gray-500"}`}>
+                          {t.stripe_enabled ? "Activo" : "No"}
+                        </span>
+                      </td>
+                    );
+                    if (k === "smtp") return (
+                      <td key="smtp" className="px-4 py-3">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${t.smtp_enabled ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500"}`}>
+                          {t.smtp_enabled ? "Activo" : "No"}
+                        </span>
+                      </td>
+                    );
+                    if (k === "creada") return (
+                      <td key="creada" className="px-4 py-3 text-klyp-gray text-xs whitespace-nowrap">
+                        {new Date(t.created_at).toLocaleDateString("es-ES")}
+                      </td>
+                    );
+                    return null;
+                  })}
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
                       <Button

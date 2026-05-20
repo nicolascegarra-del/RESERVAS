@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2 } from "lucide-react";
@@ -16,6 +16,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { accommodationsApi } from "@/lib/api";
 import type { Extra } from "@/types";
 
@@ -27,8 +34,13 @@ const createExtraSchema = z.object({
   description: z.string().max(500, "Máximo 500 caracteres").optional(),
   iva_rate: z
     .number({ invalid_type_error: "Introduce un número válido" })
-    .min(0, "El IVA no puede ser negativo")
-    .max(100, "El IVA no puede superar el 100%"),
+    .min(0)
+    .max(100),
+  price: z
+    .number({ invalid_type_error: "Introduce un número válido" })
+    .min(0, "El precio no puede ser negativo"),
+  multiplier_type: z.enum(["fixed", "per_person", "per_custom"]),
+  multiplier_label: z.string().max(100).optional(),
 });
 
 type CreateExtraFormData = z.infer<typeof createExtraSchema>;
@@ -50,11 +62,15 @@ export function CreateExtraDialog({
     register,
     handleSubmit,
     reset,
+    watch,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<CreateExtraFormData>({
     resolver: zodResolver(createExtraSchema),
-    defaultValues: { iva_rate: 10 },
+    defaultValues: { iva_rate: 10, price: 0, multiplier_type: "fixed" },
   });
+
+  const multiplierType = watch("multiplier_type");
 
   const handleClose = () => {
     reset();
@@ -69,6 +85,12 @@ export function CreateExtraDialog({
         name: data.name,
         description: data.description ?? null,
         iva_rate: data.iva_rate,
+        price: data.price,
+        multiplier_type: data.multiplier_type,
+        multiplier_label:
+          data.multiplier_type === "per_custom"
+            ? (data.multiplier_label ?? null)
+            : null,
       });
       reset();
       onSuccess(response.data);
@@ -90,7 +112,7 @@ export function CreateExtraDialog({
         <DialogHeader>
           <DialogTitle>Nuevo extra</DialogTitle>
           <DialogDescription>
-            Define un servicio adicional que podrán seleccionar las reservas.
+            Define un servicio adicional disponible para las reservas.
           </DialogDescription>
         </DialogHeader>
 
@@ -116,42 +138,96 @@ export function CreateExtraDialog({
             <Label htmlFor="extra-description">Descripción</Label>
             <textarea
               id="extra-description"
-              rows={3}
+              rows={2}
               placeholder="Descripción opcional del servicio"
               className="w-full rounded-md border border-klyp-pale bg-white px-3 py-2 text-sm text-klyp-text-dark placeholder:text-klyp-gray focus:outline-none focus:ring-2 focus:ring-klyp-accent focus:ring-offset-2 resize-none"
               {...register("description")}
             />
-            {errors.description && (
-              <p className="text-xs text-red-600">{errors.description.message}</p>
-            )}
           </div>
 
-          {/* IVA */}
-          <div className="space-y-1.5">
-            <Label htmlFor="extra-iva">
-              Tipo de IVA (%) <span className="text-red-500">*</span>
-            </Label>
-            <div className="relative">
+          {/* Precio + IVA en fila */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="extra-price">
+                Precio (€) <span className="text-red-500">*</span>
+              </Label>
               <Input
-                id="extra-iva"
+                id="extra-price"
                 type="number"
                 step="0.01"
                 min="0"
-                max="100"
-                placeholder="10"
-                className="pr-8"
-                {...register("iva_rate", { valueAsNumber: true })}
-                aria-invalid={!!errors.iva_rate}
+                placeholder="0.00"
+                {...register("price", { valueAsNumber: true })}
+                aria-invalid={!!errors.price}
               />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-klyp-gray">%</span>
+              {errors.price && (
+                <p className="text-xs text-red-600">{errors.price.message}</p>
+              )}
             </div>
-            <p className="text-xs text-klyp-gray">
-              IVA aplicado al precio de este extra (puede diferir del alojamiento).
-            </p>
-            {errors.iva_rate && (
-              <p className="text-xs text-red-600">{errors.iva_rate.message}</p>
-            )}
+
+            <div className="space-y-1.5">
+              <Label htmlFor="extra-iva">
+                IVA (%) <span className="text-red-500">*</span>
+              </Label>
+              <div className="relative">
+                <Input
+                  id="extra-iva"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  placeholder="10"
+                  className="pr-7"
+                  {...register("iva_rate", { valueAsNumber: true })}
+                  aria-invalid={!!errors.iva_rate}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-klyp-gray">
+                  %
+                </span>
+              </div>
+            </div>
           </div>
+
+          {/* Tipo de multiplicador */}
+          <div className="space-y-1.5">
+            <Label>Multiplicador de precio</Label>
+            <Controller
+              name="multiplier_type"
+              control={control}
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="fixed">Precio fijo (por reserva)</SelectItem>
+                    <SelectItem value="per_person">Por persona / noche</SelectItem>
+                    <SelectItem value="per_custom">Por cantidad personalizada</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            <p className="text-xs text-klyp-gray">
+              {multiplierType === "fixed" && "Se cobra una vez, independientemente de personas o noches."}
+              {multiplierType === "per_person" && "Se multiplica por el número de personas y noches."}
+              {multiplierType === "per_custom" && "Se multiplica por una cantidad que define el cliente."}
+            </p>
+          </div>
+
+          {/* Etiqueta de cantidad (solo per_custom) */}
+          {multiplierType === "per_custom" && (
+            <div className="space-y-1.5">
+              <Label htmlFor="extra-label">Etiqueta de cantidad</Label>
+              <Input
+                id="extra-label"
+                placeholder="Ej: Número de mascotas"
+                {...register("multiplier_label")}
+              />
+              <p className="text-xs text-klyp-gray">
+                Se muestra al huésped para indicar qué debe introducir.
+              </p>
+            </div>
+          )}
 
           {/* Error servidor */}
           {serverError && (
