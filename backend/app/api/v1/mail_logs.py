@@ -1,17 +1,19 @@
 """
 Router de logs de email.
 
-  GET /superadmin/mail-logs   → todos los tenants (super_admin)
-  GET /mail-logs              → solo el tenant del usuario (company_admin + reception)
+  GET    /superadmin/mail-logs   → todos los tenants (super_admin)
+  GET    /mail-logs              → solo el tenant del usuario (company_admin + reception)
+  DELETE /superadmin/mail-logs   → vacía todos los logs (super_admin)
+  DELETE /mail-logs              → vacía los logs del tenant (company_admin)
 """
 
 from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel
-from sqlalchemy import func
+from sqlalchemy import func, delete
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -110,3 +112,41 @@ async def list_tenant_mail_logs(
     if not current_user.tenant_id:
         return PaginatedMailLogs(items=[], total=0, page=1, pages=1)
     return await _query_logs(session, current_user.tenant_id, status, email_type, page, page_size)
+
+
+class DeletedCount(BaseModel):
+    deleted: int
+
+
+@router.delete(
+    "/superadmin/mail-logs",
+    response_model=DeletedCount,
+    status_code=status.HTTP_200_OK,
+    summary="Vaciar todos los logs de email",
+)
+async def delete_all_mail_logs(_: SuperAdminDep, session: SessionDep) -> DeletedCount:
+    count_result = await session.exec(select(func.count()).select_from(MailLog))
+    deleted = count_result.one()
+    await session.exec(delete(MailLog))
+    await session.commit()
+    return DeletedCount(deleted=deleted)
+
+
+@router.delete(
+    "/mail-logs",
+    response_model=DeletedCount,
+    status_code=status.HTTP_200_OK,
+    summary="Vaciar logs de email del tenant",
+)
+async def delete_tenant_mail_logs(
+    current_user: TenantUserDep, session: SessionDep
+) -> DeletedCount:
+    if not current_user.tenant_id:
+        return DeletedCount(deleted=0)
+    count_result = await session.exec(
+        select(func.count()).select_from(MailLog).where(MailLog.tenant_id == current_user.tenant_id)
+    )
+    deleted = count_result.one()
+    await session.exec(delete(MailLog).where(MailLog.tenant_id == current_user.tenant_id))
+    await session.commit()
+    return DeletedCount(deleted=deleted)

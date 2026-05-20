@@ -8,24 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { systemApi, type SystemSMTP } from "@/lib/superadminApi";
 
-// ─── Toggle switch ────────────────────────────────────────────────────────────
-
-function ToggleSwitch({ enabled, onChange }: { enabled: boolean; onChange: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onChange}
-      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${enabled ? "bg-klyp-accent" : "bg-gray-300"}`}
-    >
-      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${enabled ? "translate-x-6" : "translate-x-1"}`} />
-    </button>
-  );
-}
-
 // ─── Página ───────────────────────────────────────────────────────────────────
 
 type SMTPForm = {
-  smtp_enabled: boolean;
   smtp_host: string;
   smtp_port: number;
   smtp_user: string;
@@ -43,7 +28,6 @@ export default function ConfiguracionPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [form, setForm] = useState<SMTPForm>({
-    smtp_enabled: false,
     smtp_host: "",
     smtp_port: 587,
     smtp_user: "",
@@ -56,7 +40,6 @@ export default function ConfiguracionPage() {
       .then((res) => {
         const d: SystemSMTP = res.data;
         setForm({
-          smtp_enabled: d.smtp_enabled,
           smtp_host: d.smtp_host ?? "",
           smtp_port: d.smtp_port,
           smtp_user: d.smtp_user ?? "",
@@ -73,7 +56,6 @@ export default function ConfiguracionPage() {
     setSaving(true); setError(null); setSaved(false); setTestResult(null);
     try {
       const payload: Record<string, unknown> = {
-        smtp_enabled: form.smtp_enabled,
         smtp_host: form.smtp_host || null,
         smtp_port: form.smtp_port,
         smtp_user: form.smtp_user || null,
@@ -127,14 +109,10 @@ export default function ConfiguracionPage() {
             <div className="h-9 w-9 rounded-lg bg-klyp-pale flex items-center justify-center">
               <Mail className="h-5 w-5 text-klyp-accent" />
             </div>
-            <div className="flex-1">
+            <div>
               <p className="text-sm font-semibold text-klyp-navy">SMTP global</p>
-              <p className="text-xs text-klyp-gray">Servidor de correo de fallback para todo el sistema</p>
+              <p className="text-xs text-klyp-gray">Servidor de correo de fallback cuando una empresa no tiene SMTP propio</p>
             </div>
-            <ToggleSwitch
-              enabled={form.smtp_enabled}
-              onChange={() => setForm((p) => ({ ...p, smtp_enabled: !p.smtp_enabled }))}
-            />
           </div>
 
           {/* Formulario */}

@@ -1,16 +1,17 @@
 """
 Router de logs de acceso (super_admin only).
 
-  GET /superadmin/access-logs  → todos los registros de login
+  GET    /superadmin/access-logs  → todos los registros de login
+  DELETE /superadmin/access-logs  → vacía todos los registros (super_admin)
 """
 
 from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel
-from sqlalchemy import func
+from sqlalchemy import func, delete
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -80,3 +81,21 @@ async def list_access_logs(
         page=page,
         pages=max(1, (total + page_size - 1) // page_size),
     )
+
+
+class DeletedCount(BaseModel):
+    deleted: int
+
+
+@router.delete(
+    "/superadmin/access-logs",
+    response_model=DeletedCount,
+    status_code=status.HTTP_200_OK,
+    summary="Vaciar todos los logs de acceso",
+)
+async def delete_all_access_logs(_: SuperAdminDep, session: SessionDep) -> DeletedCount:
+    count_result = await session.exec(select(func.count()).select_from(AccessLog))
+    deleted = count_result.one()
+    await session.exec(delete(AccessLog))
+    await session.commit()
+    return DeletedCount(deleted=deleted)

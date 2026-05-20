@@ -801,6 +801,8 @@ interface AccessLogParams {
 export const accessLogsApi = {
   listAll: (params?: AccessLogParams) =>
     apiClient.get<PaginatedAccessLogs>("/api/v1/superadmin/access-logs", { params }),
+  deleteAll: () =>
+    apiClient.delete<{ deleted: number }>("/api/v1/superadmin/access-logs"),
 };
 
 // ─── Mail Logs ────────────────────────────────────────────────────────────────
@@ -818,6 +820,12 @@ export const mailLogsApi = {
 
   listTenant: (params?: MailLogParams) =>
     apiClient.get<PaginatedMailLogs>("/api/v1/mail-logs", { params }),
+
+  deleteAll: () =>
+    apiClient.delete<{ deleted: number }>("/api/v1/superadmin/mail-logs"),
+
+  deleteTenant: () =>
+    apiClient.delete<{ deleted: number }>("/api/v1/mail-logs"),
 };
 
 // ─── Solicitudes de cambio ────────────────────────────────────────────────────

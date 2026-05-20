@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ShieldCheck, RefreshCw, CheckCircle, XCircle, ChevronLeft, ChevronRight, SlidersHorizontal } from "lucide-react";
+import { ShieldCheck, RefreshCw, CheckCircle, XCircle, ChevronLeft, ChevronRight, SlidersHorizontal, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -12,6 +12,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { accessLogsApi } from "@/lib/api";
 import type { AccessLog } from "@/lib/api";
 
@@ -63,6 +74,7 @@ export default function AccessLogsPage() {
   const [eventFilter, setEventFilter] = useState("all");
   const [emailSearch, setEmailSearch] = useState("");
   const [emailInput, setEmailInput] = useState("");
+  const [clearing, setClearing] = useState(false);
 
   // ─── Columnas persistentes ─────────────────────────────────────────────────
   const [visibleCols, setVisibleCols] = useState<Set<ColKey>>(DEFAULT_COLS);
@@ -123,6 +135,16 @@ export default function AccessLogsPage() {
   function handleEmailSearch() { setEmailSearch(emailInput); setPage(1); }
   function handlePage(p: number) { setPage(p); void load(p, eventFilter, emailSearch); }
 
+  async function handleClear() {
+    setClearing(true);
+    try {
+      await accessLogsApi.deleteAll();
+      void load(1, eventFilter, emailSearch);
+    } finally {
+      setClearing(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -136,16 +158,42 @@ export default function AccessLogsPage() {
             Registro de logins al sistema — {total} entradas
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => void load(page, eventFilter, emailSearch)}
-          disabled={loading}
-          className="shrink-0"
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-          Actualizar
-        </Button>
+        <div className="flex gap-2 shrink-0">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void load(page, eventFilter, emailSearch)}
+            disabled={loading}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+            Actualizar
+          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm" className="text-red-600 border-red-200 hover:bg-red-50" disabled={clearing || total === 0}>
+                <Trash2 className="h-4 w-4 mr-2" />
+                Vaciar logs
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>¿Vaciar todos los logs de acceso?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Se eliminarán permanentemente los {total} registros de acceso de todos los usuarios. Esta acción no se puede deshacer.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-red-600 hover:bg-red-700"
+                  onClick={() => void handleClear()}
+                >
+                  Sí, vaciar todo
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </div>
 
       {/* Filters */}

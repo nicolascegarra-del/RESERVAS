@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Mail, RefreshCw, CheckCircle, XCircle, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { Mail, RefreshCw, CheckCircle, XCircle, AlertCircle, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -11,6 +11,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { mailLogsApi } from "@/lib/api";
 import type { MailLog } from "@/types";
 import {
@@ -36,6 +47,7 @@ export default function MailLogsPage() {
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [clearing, setClearing] = useState(false);
 
   const load = useCallback(async (p: number, sf: string, tf: string) => {
     setLoading(true);
@@ -72,6 +84,16 @@ export default function MailLogsPage() {
     void load(p, statusFilter, typeFilter);
   }
 
+  async function handleClear() {
+    setClearing(true);
+    try {
+      await mailLogsApi.deleteTenant();
+      void load(1, statusFilter, typeFilter);
+    } finally {
+      setClearing(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -85,16 +107,42 @@ export default function MailLogsPage() {
             Emails enviados por tu empresa — {total} registros
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => void load(page, statusFilter, typeFilter)}
-          disabled={loading}
-          className="shrink-0"
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-          Actualizar
-        </Button>
+        <div className="flex gap-2 shrink-0">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void load(page, statusFilter, typeFilter)}
+            disabled={loading}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+            Actualizar
+          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm" className="text-red-600 border-red-200 hover:bg-red-50" disabled={clearing || total === 0}>
+                <Trash2 className="h-4 w-4 mr-2" />
+                Vaciar logs
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>¿Vaciar el historial de emails?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Se eliminarán permanentemente los {total} registros de email de tu empresa. Esta acción no se puede deshacer.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-red-600 hover:bg-red-700"
+                  onClick={() => void handleClear()}
+                >
+                  Sí, vaciar
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </div>
 
       {/* Filters */}

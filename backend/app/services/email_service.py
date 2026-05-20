@@ -225,7 +225,6 @@ def _send_email(
     # ── 2. SMTP global de fallback ──────────────────────────────────────────────
     elif (
         system_smtp
-        and system_smtp.smtp_enabled
         and system_smtp.smtp_host
         and system_smtp.smtp_user
         and system_smtp.smtp_from
