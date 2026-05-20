@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Plus, Pencil, Trash2, Users, Building2, Loader2,
   PauseCircle, PlayCircle, ChevronUp, ChevronDown, SlidersHorizontal,
-  Upload, AlertTriangle, CreditCard, Mail, Info, LogIn, Settings2,
+  Upload, AlertTriangle, CreditCard, Mail, Info, LogIn, Globe,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/button";
@@ -392,12 +392,19 @@ type ConfigFormData = {
   smtp_user: string;
   smtp_password: string;
   smtp_from: string;
+  redsys_enabled: boolean;
+  redsys_merchant_code: string;
+  redsys_terminal: string;
+  redsys_secret_key: string;
+  redsys_currency: string;
+  redsys_environment: string;
 };
-type ConfigStringKey = Exclude<keyof ConfigFormData, "stripe_enabled" | "smtp_enabled">;
+type ConfigStringKey = Exclude<keyof ConfigFormData, "stripe_enabled" | "smtp_enabled" | "redsys_enabled">;
 
 const emptyConfig = (): ConfigFormData => ({
   stripe_enabled: false, stripe_secret_key: "", stripe_webhook_secret: "", stripe_currency: "EUR",
   smtp_enabled: false, smtp_host: "", smtp_port: 587, smtp_user: "", smtp_password: "", smtp_from: "",
+  redsys_enabled: false, redsys_merchant_code: "", redsys_terminal: "", redsys_secret_key: "", redsys_currency: "978", redsys_environment: "sandbox",
 });
 
 function ToggleSwitch({ enabled, onChange }: { enabled: boolean; onChange: () => void }) {
@@ -434,7 +441,7 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
     max_reception_users: tenant.max_reception_users,
   });
   const [config, setConfig] = useState<ConfigFormData>(emptyConfig());
-  const [configMeta, setConfigMeta] = useState({ stripe_secret_key_set: false, stripe_webhook_secret_set: false, smtp_password_set: false, smtp_verified_at: null as string | null });
+  const [configMeta, setConfigMeta] = useState({ stripe_secret_key_set: false, stripe_webhook_secret_set: false, smtp_password_set: false, smtp_verified_at: null as string | null, redsys_secret_key_set: false });
   const [loadingConfig, setLoadingConfig] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testingSmtp, setTestingSmtp] = useState(false);
@@ -463,12 +470,19 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
           smtp_user: d.smtp_user ?? "",
           smtp_password: "",
           smtp_from: d.smtp_from ?? "",
+          redsys_enabled: d.redsys_enabled,
+          redsys_merchant_code: d.redsys_merchant_code ?? "",
+          redsys_terminal: d.redsys_terminal ?? "",
+          redsys_secret_key: "",
+          redsys_currency: d.redsys_currency,
+          redsys_environment: d.redsys_environment,
         });
         setConfigMeta({
           stripe_secret_key_set: d.stripe_secret_key_set,
           stripe_webhook_secret_set: d.stripe_webhook_secret_set,
           smtp_password_set: d.smtp_password_set,
           smtp_verified_at: d.smtp_verified_at ?? null,
+          redsys_secret_key_set: d.redsys_secret_key_set,
         });
       })
       .catch(() => {})
@@ -512,10 +526,16 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
         smtp_port: config.smtp_port,
         smtp_user: config.smtp_user || null,
         smtp_from: config.smtp_from || null,
+        redsys_enabled: config.redsys_enabled,
+        redsys_merchant_code: config.redsys_merchant_code || null,
+        redsys_terminal: config.redsys_terminal || null,
+        redsys_currency: config.redsys_currency,
+        redsys_environment: config.redsys_environment,
       };
       if (config.stripe_secret_key) configPayload["stripe_secret_key"] = config.stripe_secret_key;
       if (config.stripe_webhook_secret) configPayload["stripe_webhook_secret"] = config.stripe_webhook_secret;
       if (config.smtp_password) configPayload["smtp_password"] = config.smtp_password;
+      if (config.redsys_secret_key) configPayload["redsys_secret_key"] = config.redsys_secret_key;
 
       const [tenantRes] = await Promise.all([
         tenantsApi.update(tenant.id, {
@@ -572,7 +592,7 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
 
         <div className="px-6 pb-6 pt-4">
           <Tabs defaultValue="general" className="w-full">
-            <TabsList className="w-full mb-4 grid grid-cols-3 h-auto p-1">
+            <TabsList className="w-full mb-4 grid grid-cols-4 h-auto p-1">
               <TabsTrigger value="general" className="flex items-center gap-1.5 py-2 text-xs sm:text-sm">
                 <Building2 className="h-3.5 w-3.5 shrink-0" />
                 <span>General</span>
@@ -586,6 +606,11 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
                 <Mail className="h-3.5 w-3.5 shrink-0" />
                 <span>SMTP</span>
                 {config.smtp_enabled && <span className="hidden sm:inline-block h-1.5 w-1.5 rounded-full bg-blue-500 ml-0.5" />}
+              </TabsTrigger>
+              <TabsTrigger value="redsys" className="flex items-center gap-1.5 py-2 text-xs sm:text-sm">
+                <CreditCard className="h-3.5 w-3.5 shrink-0" />
+                <span>Redsys</span>
+                {config.redsys_enabled && <span className="hidden sm:inline-block h-1.5 w-1.5 rounded-full bg-green-500 ml-0.5" />}
               </TabsTrigger>
             </TabsList>
 
@@ -750,6 +775,77 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
                   <div className="flex items-start gap-2.5 p-3 bg-klyp-pale rounded-lg border border-klyp-accent/20 text-xs text-klyp-gray">
                     <Info className="h-3.5 w-3.5 text-klyp-accent shrink-0 mt-0.5" />
                     <span>Si no hay SMTP propio configurado, se usará el <strong className="text-klyp-navy">SMTP global</strong> del sistema como fallback.</span>
+                  </div>
+                </>
+              )}
+            </TabsContent>
+
+            {/* ── Redsys ── */}
+            <TabsContent value="redsys" className="space-y-4 mt-0">
+              {loadingConfig ? (
+                <div className="space-y-2">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-10 w-full rounded-md" />)}</div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between p-4 rounded-xl border-2 transition-colors" style={{
+                    borderColor: config.redsys_enabled ? "rgb(22 163 74 / 0.3)" : "rgb(229 231 235)",
+                    backgroundColor: config.redsys_enabled ? "rgb(240 253 244)" : "rgb(249 250 251)",
+                  }}>
+                    <div className="flex items-center gap-3">
+                      <div className={`h-9 w-9 rounded-lg flex items-center justify-center ${config.redsys_enabled ? "bg-green-100" : "bg-gray-100"}`}>
+                        <CreditCard className={`h-5 w-5 ${config.redsys_enabled ? "text-green-600" : "text-gray-400"}`} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-klyp-navy">TPV Virtual (Redsys)</p>
+                        <p className="text-xs text-klyp-gray">Pagos online con tarjeta vía Redsys</p>
+                      </div>
+                    </div>
+                    <ToggleSwitch enabled={config.redsys_enabled} onChange={() => setConfig((p) => ({ ...p, redsys_enabled: !p.redsys_enabled }))} />
+                  </div>
+                  <div className="space-y-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Código de comercio / FUC</Label>
+                        <Input {...cfgField("redsys_merchant_code")} placeholder="Ej: 999008881" maxLength={15} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Terminal</Label>
+                        <Input {...cfgField("redsys_terminal")} placeholder="Ej: 001" maxLength={3} className="w-28" />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">
+                        Clave secreta (HMAC-SHA512)
+                        {configMeta.redsys_secret_key_set && (
+                          <span className="ml-2 normal-case font-normal text-green-600">— configurada, dejar vacío para mantener</span>
+                        )}
+                      </Label>
+                      <Input type="password" {...cfgField("redsys_secret_key")} placeholder="sq7HjrUOBfKmC576ILgskD5srU870gJ7..." />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Moneda (ISO 4217 numérico)</Label>
+                        <Input {...cfgField("redsys_currency")} placeholder="978" maxLength={3} className="w-24" />
+                        <p className="text-xs text-klyp-gray">978 = EUR</p>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Entorno</Label>
+                        <select
+                          value={config.redsys_environment}
+                          onChange={(e) => setConfig((p) => ({ ...p, redsys_environment: e.target.value }))}
+                          className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm w-full"
+                        >
+                          <option value="sandbox">Sandbox (pruebas)</option>
+                          <option value="production">Producción</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">URL de notificación IPN</Label>
+                      <code className="block bg-white border border-gray-200 rounded px-3 py-2 text-xs font-mono text-klyp-navy break-all">
+                        {process.env["NEXT_PUBLIC_API_URL"] ?? ""}/api/v1/redsys/notification
+                      </code>
+                      <p className="text-xs text-klyp-gray">Configura esta URL en el portal de Redsys como URL de notificación.</p>
+                    </div>
                   </div>
                 </>
               )}
@@ -1095,8 +1191,11 @@ export default function EmpresasPage() {
                       <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Gestionar usuarios" onClick={() => setUsersTenant(t)}>
                         <Users className="h-4 w-4 text-klyp-gray" />
                       </Button>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Pasarelas de pago y SMTP" onClick={() => router.push(`/empresas/${t.id}/config`)}>
-                        <Settings2 className="h-4 w-4 text-klyp-gray" />
+                      <Button
+                        variant="ghost" size="sm" className="h-8 w-8 p-0" title="Ver página pública"
+                        onClick={() => window.open(`/${t.slug}`, "_blank")}
+                      >
+                        <Globe className="h-4 w-4 text-klyp-gray" />
                       </Button>
                       <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Editar empresa" onClick={() => setEditTenant(t)}>
                         <Pencil className="h-4 w-4 text-klyp-gray" />
