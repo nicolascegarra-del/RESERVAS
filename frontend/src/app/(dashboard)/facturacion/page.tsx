@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { FileText, Loader2 } from "lucide-react";
+import { FileText } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { billingApi } from "@/lib/api";
 import type { Invoice, InvoiceStatus } from "@/types";
