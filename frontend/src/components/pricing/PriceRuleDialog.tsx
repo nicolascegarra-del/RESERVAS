@@ -26,14 +26,18 @@ const priceRuleSchema = z.object({
     .string()
     .regex(mmDdPattern, "Formato MM-DD (ej: 07-01)")
     .refine((v) => {
-      const [m, d] = v.split("-").map(Number);
+      const parts = v.split("-");
+      const m = Number(parts[0]);
+      const d = Number(parts[1]);
       return m >= 1 && m <= 12 && d >= 1 && d <= 31;
     }, "Fecha no válida"),
   date_to: z
     .string()
     .regex(mmDdPattern, "Formato MM-DD (ej: 08-31)")
     .refine((v) => {
-      const [m, d] = v.split("-").map(Number);
+      const parts = v.split("-");
+      const m = Number(parts[0]);
+      const d = Number(parts[1]);
       return m >= 1 && m <= 12 && d >= 1 && d <= 31;
     }, "Fecha no válida"),
   price_per_night: z
