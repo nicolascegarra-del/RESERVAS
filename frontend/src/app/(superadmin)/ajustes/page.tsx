@@ -80,8 +80,15 @@ export default function ConfiguracionPage() {
       setTestResult({ ok: true, message: "Conexión verificada correctamente." });
       setVerifiedAt(res.data.verified_at);
     } catch (e: unknown) {
-      const err = e as { response?: { data?: { detail?: { error?: { message?: string } } } } };
-      setTestResult({ ok: false, message: err.response?.data?.detail?.error?.message ?? "Error al conectar." });
+      const err = e as { response?: { data?: { detail?: { error?: { message?: string } } | string } } };
+      const detail = err.response?.data?.detail;
+      const msg =
+        typeof detail === "object" && detail !== null
+          ? (detail as { error?: { message?: string } }).error?.message
+          : typeof detail === "string"
+            ? detail
+            : undefined;
+      setTestResult({ ok: false, message: msg ?? "Error al conectar. Revisa host, puerto y credenciales." });
     } finally { setTesting(false); }
   };
 

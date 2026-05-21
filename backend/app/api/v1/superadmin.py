@@ -3,8 +3,10 @@ Router de super admin — gestión global de empresas y usuarios.
 """
 
 import asyncio
+import logging
 import os
 import smtplib
+import ssl
 import uuid as uuid_lib
 from datetime import datetime
 from typing import Annotated
@@ -226,20 +228,31 @@ async def upload_tenant_logo(
 # ─── Helper SMTP ──────────────────────────────────────────────────────────────
 
 
+logger = logging.getLogger(__name__)
+
+
 def _test_smtp_connection(host: str, port: int, user: str, password: str | None) -> None:
     use_ssl = port == 465
-    if use_ssl:
-        with smtplib.SMTP_SSL(host, port, timeout=15) as server:
-            server.ehlo()
-            if password:
-                server.login(user, password)
-    else:
-        with smtplib.SMTP(host, port, timeout=15) as server:
-            server.ehlo()
-            server.starttls()
-            server.ehlo()
-            if password:
-                server.login(user, password)
+    # SSL context permisivo para prueba de conectividad (acepta self-signed certs)
+    ssl_context = ssl.create_default_context()
+    ssl_context.check_hostname = False
+    ssl_context.verify_mode = ssl.CERT_NONE
+    try:
+        if use_ssl:
+            with smtplib.SMTP_SSL(host, port, context=ssl_context, timeout=15) as server:
+                server.ehlo()
+                if password:
+                    server.login(user, password)
+        else:
+            with smtplib.SMTP(host, port, timeout=15) as server:
+                server.ehlo()
+                server.starttls(context=ssl_context)
+                server.ehlo()
+                if password:
+                    server.login(user, password)
+    except Exception as exc:
+        logger.error("SMTP test failed (%s:%d): %s", host, port, exc)
+        raise
 
 
 # ─── Configuración por empresa (Stripe + SMTP) ────────────────────────────────
@@ -381,7 +394,7 @@ async def test_tenant_smtp(tenant_id: UUID, _: SuperAdminDep, session: SessionDe
         )
     password = decrypt_secret(tenant.smtp_password) if tenant.smtp_password else None
     try:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, _test_smtp_connection, tenant.smtp_host, tenant.smtp_port, tenant.smtp_user, password)
     except Exception as e:
         raise HTTPException(
@@ -469,7 +482,7 @@ async def test_system_smtp(_: SuperAdminDep, session: SessionDep) -> dict:
         )
     password = decrypt_secret(s.smtp_password) if s.smtp_password else None
     try:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, _test_smtp_connection, s.smtp_host, s.smtp_port, s.smtp_user, password)
     except Exception as e:
         raise HTTPException(
