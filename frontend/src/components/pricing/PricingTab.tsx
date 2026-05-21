@@ -20,7 +20,6 @@ import { ExtraPricesTable } from "@/components/pricing/ExtraPricesTable";
 import { PriceRuleDialog } from "@/components/pricing/PriceRuleDialog";
 import { pricingApi, accommodationsApi } from "@/lib/api";
 import type {
-  AccommodationCategory,
   AccommodationPriceRule,
   Extra,
   ExtraPrice,
@@ -32,7 +31,6 @@ import type {
 
 interface PricingTabProps {
   typeId: string;
-  category: AccommodationCategory;
   /** Extras del tenant (cargados en la página padre) */
   extras: Extra[];
   canManage: boolean;
@@ -42,13 +40,13 @@ interface PricingTabProps {
  * Tab de configuración de precios de un AccommodationType.
  *
  * Secciones:
- * 1. Precio base — campos según categoría (apartment/cabin: unidad; camping: parcela + persona)
- * 2. Temporadas — tabla con CRUD completo
- * 3. Precio de extras — solo para camping, tabla editable
+ * 1. Reglas de precio por temporada — tramos MM-DD con tarifa propia
+ * 2. Precio base — modelo de precio base (unidad o parcela/persona)
+ * 3. Temporadas — rangos de fecha con precios distintos
+ * 4. Precio de extras — tabla editable de precios por extra
  */
 export function PricingTab({
   typeId,
-  category,
   extras,
   canManage,
 }: PricingTabProps) {
@@ -172,7 +170,6 @@ export function PricingTab({
     }
   };
 
-  const isCamping = category === "parcela";
   const currency = pricingModel?.currency ?? "EUR";
 
   if (isLoading) {
@@ -335,7 +332,6 @@ export function PricingTab({
           )}
           <PricingModelForm
             typeId={typeId}
-            category={category}
             pricingModel={pricingModel}
             onSaved={handleModelSaved}
           />
@@ -359,7 +355,6 @@ export function PricingTab({
             </div>
             <SeasonTable
               typeId={typeId}
-              category={category}
               seasons={pricingModel.seasons}
               currency={currency}
               canManage={canManage}
@@ -367,30 +362,26 @@ export function PricingTab({
             />
           </section>
 
-          {isCamping && (
-            <>
-              <Separator />
-              <section>
-                <div className="mb-4">
-                  <h2 className="text-base font-semibold text-klyp-navy">
-                    Precio de extras
-                  </h2>
-                  <p className="text-sm text-klyp-gray mt-1">
-                    Configura el precio por noche de cada extra disponible.
-                    Precio 0 significa incluido sin coste adicional.
-                  </p>
-                </div>
-                <ExtraPricesTable
-                  typeId={typeId}
-                  extras={extras.filter((e) => e.is_active)}
-                  extraPrices={pricingModel.extra_prices}
-                  currency={currency}
-                  canManage={canManage}
-                  onExtraPricesChange={handleExtraPricesChange}
-                />
-              </section>
-            </>
-          )}
+          <Separator />
+          <section>
+            <div className="mb-4">
+              <h2 className="text-base font-semibold text-klyp-navy">
+                Precio de extras
+              </h2>
+              <p className="text-sm text-klyp-gray mt-1">
+                Configura el precio por noche de cada extra disponible.
+                Precio 0 significa incluido sin coste adicional.
+              </p>
+            </div>
+            <ExtraPricesTable
+              typeId={typeId}
+              extras={extras.filter((e) => e.is_active)}
+              extraPrices={pricingModel.extra_prices}
+              currency={currency}
+              canManage={canManage}
+              onExtraPricesChange={handleExtraPricesChange}
+            />
+          </section>
         </>
       )}
 

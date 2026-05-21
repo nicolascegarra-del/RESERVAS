@@ -46,7 +46,6 @@ class PublicTypeAvailability(BaseModel):
 
     type_id: UUID
     type_name: str
-    type_category: str  # "camping" | "apartment" | "cabin"
     description: str | None
 
     # Unidades con capacidad >= num_persons (disponibles y no disponibles)
@@ -68,7 +67,6 @@ class PublicAccommodationType(BaseModel):
 
     id: UUID
     name: str
-    type_category: str
     description: str | None
     active_unit_count: int
 

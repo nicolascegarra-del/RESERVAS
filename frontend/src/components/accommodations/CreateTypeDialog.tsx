@@ -16,13 +16,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { accommodationsApi } from "@/lib/api";
 import type { AccommodationType } from "@/types";
 
@@ -31,9 +24,6 @@ const createTypeSchema = z.object({
     .string()
     .min(1, "El nombre es obligatorio")
     .max(200, "Máximo 200 caracteres"),
-  type_category: z.enum(["parcela", "apartamento", "albergue"], {
-    required_error: "Selecciona una categoría",
-  }),
   description: z.string().max(1000, "Máximo 1000 caracteres").optional(),
   iva_rate: z
     .number({ invalid_type_error: "Introduce un número válido" })
@@ -60,15 +50,11 @@ export function CreateTypeDialog({
     register,
     handleSubmit,
     reset,
-    setValue,
-    watch,
     formState: { errors, isSubmitting },
   } = useForm<CreateTypeFormData>({
     resolver: zodResolver(createTypeSchema),
     defaultValues: { iva_rate: 10 },
   });
-
-  const selectedCategory = watch("type_category");
 
   const handleClose = () => {
     reset();
@@ -81,7 +67,6 @@ export function CreateTypeDialog({
     try {
       const response = await accommodationsApi.createType({
         name: data.name,
-        type_category: data.type_category,
         description: data.description ?? null,
         iva_rate: data.iva_rate,
       });
@@ -123,35 +108,6 @@ export function CreateTypeDialog({
             />
             {errors.name && (
               <p className="text-xs text-red-600">{errors.name.message}</p>
-            )}
-          </div>
-
-          {/* Categoría */}
-          <div className="space-y-1.5">
-            <Label htmlFor="type-category">
-              Categoría <span className="text-red-500">*</span>
-            </Label>
-            <Select
-              value={selectedCategory}
-              onValueChange={(value) =>
-                setValue(
-                  "type_category",
-                  value as CreateTypeFormData["type_category"],
-                  { shouldValidate: true },
-                )
-              }
-            >
-              <SelectTrigger id="type-category" aria-invalid={!!errors.type_category}>
-                <SelectValue placeholder="Selecciona una categoría" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="parcela">Parcela</SelectItem>
-                <SelectItem value="apartamento">Apartamento</SelectItem>
-                <SelectItem value="albergue">Albergue</SelectItem>
-              </SelectContent>
-            </Select>
-            {errors.type_category && (
-              <p className="text-xs text-red-600">{errors.type_category.message}</p>
             )}
           </div>
 

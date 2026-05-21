@@ -37,7 +37,6 @@ export interface PublicTenantInfo {
 export interface PublicAccommodationType {
   id: string;
   name: string;
-  type_category: string;
   description: string | null;
   active_unit_count: number;
 }
@@ -59,7 +58,6 @@ export interface PublicUnitAvailability {
 export interface PublicTypeAvailability {
   type_id: string;
   type_name: string;
-  type_category: string;
   description: string | null;
   available_units: PublicUnitAvailability[];
   price_preview: PriceCalculationResult | null;

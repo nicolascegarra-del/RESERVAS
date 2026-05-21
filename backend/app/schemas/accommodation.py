@@ -11,7 +11,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from app.models.accommodation import AccommodationCategory, FieldType, MultiplierType
+from app.models.accommodation import FieldType, MultiplierType
 
 
 # ─── AccommodationType ──────────────────────────────────────────────────────
@@ -19,7 +19,6 @@ from app.models.accommodation import AccommodationCategory, FieldType, Multiplie
 
 class AccommodationTypeCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
-    type_category: AccommodationCategory
     description: str | None = Field(default=None, max_length=1000)
     iva_rate: Decimal = Field(default=Decimal("10.00"), ge=0, decimal_places=2)
 
@@ -35,7 +34,6 @@ class AccommodationTypeRead(BaseModel):
     id: UUID
     tenant_id: UUID
     name: str
-    type_category: AccommodationCategory
     description: str | None
     is_active: bool
     iva_rate: Decimal

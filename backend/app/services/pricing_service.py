@@ -17,7 +17,7 @@ from fastapi import HTTPException, status
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.accommodation import AccommodationCategory, AccommodationType, Extra
+from app.models.accommodation import AccommodationType, Extra
 from app.models.pricing import ExtraPrice, PricingModel, Season
 from app.schemas.pricing import (
     ExtraPriceCreate,
@@ -505,36 +505,36 @@ def _get_night_price(
     num_persons: int,
 ) -> Decimal:
     """
-    Calcula el precio por noche para una categoría dado un pricing model y temporada.
+    Calcula el precio por noche dado un pricing model y temporada.
 
-    La lógica de precios por categoría:
-    - apartment / cabin: precio_unidad_noche
-    - camping: precio_parcela_noche + precio_persona_noche × num_persons
+    Lógica de precios:
+    - Si unit_price_per_night tiene valor (no nulo): precio por unidad/noche.
+    - En caso contrario: plot_price_per_night + person_price_per_night × num_persons.
 
     Si hay temporada activa, sus precios reemplazan los del modelo base cuando
     el campo correspondiente no es None.
 
     Args:
         pricing_model: Modelo de precios base.
-        accommodation_type: Tipo de alojamiento (para leer la categoría).
+        accommodation_type: Tipo de alojamiento.
         season: Temporada activa para esta noche, o None.
-        num_persons: Número de personas (relevante para camping).
+        num_persons: Número de personas.
 
     Returns:
         Precio total por esa noche.
     """
     zero = Decimal("0.00")
-    category = accommodation_type.type_category
 
-    if category in (AccommodationCategory.apartment, AccommodationCategory.cabin):
-        unit_price = (
-            season.unit_price_per_night
-            if season and season.unit_price_per_night is not None
-            else pricing_model.unit_price_per_night
-        )
+    unit_price = (
+        season.unit_price_per_night
+        if season and season.unit_price_per_night is not None
+        else pricing_model.unit_price_per_night
+    )
+
+    if unit_price is not None:
         return unit_price or zero
 
-    # camping
+    # Precio basado en parcela + persona
     plot_price = (
         season.plot_price_per_night
         if season and season.plot_price_per_night is not None

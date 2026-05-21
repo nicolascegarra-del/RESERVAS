@@ -57,15 +57,12 @@ export const ROLE_COLORS: Record<UserRole, string> = {
 
 // ─── Alojamientos ─────────────────────────────────────────────────────────────
 
-export type AccommodationCategory = "parcela" | "apartamento" | "albergue";
-
 export type FieldType = "text" | "number" | "boolean" | "select";
 
 export interface AccommodationType {
   id: string;
   tenant_id: string;
   name: string;
-  type_category: AccommodationCategory;
   description: string | null;
   is_active: boolean;
   /** Tipo de IVA (%) aplicado al alojamiento */
@@ -149,18 +146,6 @@ export const MULTIPLIER_TYPE_LABELS: Record<MultiplierType, string> = {
 export interface AccommodationTypeWithUnits extends AccommodationType {
   units: AccommodationUnit[];
 }
-
-export const CATEGORY_LABELS: Record<AccommodationCategory, string> = {
-  parcela: "Parcela",
-  apartamento: "Apartamento",
-  albergue: "Albergue",
-};
-
-export const CATEGORY_COLORS: Record<AccommodationCategory, string> = {
-  parcela: "bg-green-100 text-green-800",
-  apartamento: "bg-blue-100 text-blue-800",
-  albergue: "bg-amber-100 text-amber-800",
-};
 
 export const FIELD_TYPE_LABELS: Record<FieldType, string> = {
   text: "Texto",

@@ -15,13 +15,12 @@ import {
 import { CreateSeasonDialog } from "@/components/pricing/CreateSeasonDialog";
 import { pricingApi } from "@/lib/api";
 import { formatCurrency, extractApiErrorMessage } from "@/lib/utils";
-import type { AccommodationCategory, Season } from "@/types";
+import type { Season } from "@/types";
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface SeasonTableProps {
   typeId: string;
-  category: AccommodationCategory;
   seasons: Season[];
   currency: string;
   canManage: boolean;
@@ -36,7 +35,6 @@ interface SeasonTableProps {
  */
 export function SeasonTable({
   typeId,
-  category,
   seasons,
   currency,
   canManage,
@@ -44,8 +42,6 @@ export function SeasonTable({
 }: SeasonTableProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [seasonToEdit, setSeasonToEdit] = useState<Season | null>(null);
-
-  const isCamping = category === "parcela";
 
   const handleSeasonSaved = (season: Season) => {
     const existing = seasons.find((s) => s.id === season.id);
@@ -132,21 +128,15 @@ export function SeasonTable({
                 <TableHead>Nombre</TableHead>
                 <TableHead className="hidden sm:table-cell">Fechas</TableHead>
                 <TableHead>Prior.</TableHead>
-                {!isCamping && (
-                  <TableHead className="hidden md:table-cell">
-                    Precio unidad/noche
-                  </TableHead>
-                )}
-                {isCamping && (
-                  <>
-                    <TableHead className="hidden md:table-cell">
-                      Parcela/noche
-                    </TableHead>
-                    <TableHead className="hidden md:table-cell">
-                      Persona/noche
-                    </TableHead>
-                  </>
-                )}
+                <TableHead className="hidden md:table-cell">
+                  Unidad/noche
+                </TableHead>
+                <TableHead className="hidden md:table-cell">
+                  Parcela/noche
+                </TableHead>
+                <TableHead className="hidden md:table-cell">
+                  Persona/noche
+                </TableHead>
                 <TableHead>Activa</TableHead>
                 {canManage && (
                   <TableHead className="w-20">Acciones</TableHead>
@@ -170,21 +160,15 @@ export function SeasonTable({
                       {season.priority}
                     </Badge>
                   </TableCell>
-                  {!isCamping && (
-                    <TableCell className="hidden md:table-cell text-sm">
-                      {formatPrice(season.unit_price_per_night)}
-                    </TableCell>
-                  )}
-                  {isCamping && (
-                    <>
-                      <TableCell className="hidden md:table-cell text-sm">
-                        {formatPrice(season.plot_price_per_night)}
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell text-sm">
-                        {formatPrice(season.person_price_per_night)}
-                      </TableCell>
-                    </>
-                  )}
+                  <TableCell className="hidden md:table-cell text-sm">
+                    {formatPrice(season.unit_price_per_night)}
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell text-sm">
+                    {formatPrice(season.plot_price_per_night)}
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell text-sm">
+                    {formatPrice(season.person_price_per_night)}
+                  </TableCell>
                   <TableCell>
                     <span
                       className={
@@ -231,7 +215,6 @@ export function SeasonTable({
         open={isDialogOpen}
         onOpenChange={setIsDialogOpen}
         typeId={typeId}
-        category={category}
         seasonToEdit={seasonToEdit}
         onSuccess={handleSeasonSaved}
       />

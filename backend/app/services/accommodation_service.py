@@ -194,7 +194,6 @@ async def create_accommodation_type(
     accommodation_type = AccommodationType(
         tenant_id=tenant_id,
         name=data.name,
-        type_category=data.type_category,
         description=data.description,
     )
     session.add(accommodation_type)

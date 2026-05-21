@@ -10,7 +10,6 @@ from app.models.billing import (
     ReservationPayment,
 )
 from app.models.accommodation import (
-    AccommodationCategory,
     AccommodationPhoto,
     AccommodationPriceRule,
     AccommodationType,
@@ -52,7 +51,6 @@ __all__ = [
     "Tenant",
     "User",
     "UserRole",
-    "AccommodationCategory",
     "AccommodationPhoto",
     "AccommodationPriceRule",
     "AccommodationType",

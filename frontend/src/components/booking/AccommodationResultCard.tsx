@@ -1,29 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Tent, Home, Building2, Users, Moon, CheckCircle2 } from "lucide-react";
+import { Building2, Users, Moon, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { PublicTypeAvailability } from "@/lib/publicApi";
 import { BookingModal } from "@/components/booking/BookingModal";
-
-const CATEGORY_ICONS: Record<string, React.ReactNode> = {
-  parcela: <Tent className="h-5 w-5" />,
-  apartamento: <Home className="h-5 w-5" />,
-  albergue: <Building2 className="h-5 w-5" />,
-};
-
-const CATEGORY_LABELS: Record<string, string> = {
-  parcela: "Parcela",
-  apartamento: "Apartamento",
-  albergue: "Albergue",
-};
-
-const CATEGORY_COLORS: Record<string, string> = {
-  parcela: "bg-green-100 text-green-800",
-  apartamento: "bg-blue-100 text-blue-800",
-  albergue: "bg-amber-100 text-amber-800",
-};
 
 interface AccommodationResultCardProps {
   result: PublicTypeAvailability;
@@ -46,9 +28,6 @@ export function AccommodationResultCard({
 }: AccommodationResultCardProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const availableUnits = result.available_units.filter((u) => u.is_available);
-  const categoryIcon = CATEGORY_ICONS[result.type_category] ?? <Home className="h-5 w-5" />;
-  const categoryLabel = CATEGORY_LABELS[result.type_category] ?? result.type_category;
-  const categoryColor = CATEGORY_COLORS[result.type_category] ?? "bg-gray-100 text-gray-700";
 
   const totalPrice = result.price_preview
     ? parseFloat(result.price_preview.total_price)
@@ -74,9 +53,9 @@ export function AccommodationResultCard({
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${categoryColor}`}>
-              {categoryIcon}
-              {categoryLabel}
+            <span className="flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-klyp-pale text-klyp-text-dark">
+              <Building2 className="h-4 w-4" />
+              Alojamiento
             </span>
           </div>
           <span className="shrink-0 text-xs font-medium text-emerald-700 bg-emerald-50 rounded-full px-2 py-0.5 flex items-center gap-1">

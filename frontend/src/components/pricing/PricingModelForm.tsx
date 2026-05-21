@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { pricingApi } from "@/lib/api";
 import { extractApiErrorMessage } from "@/lib/utils";
-import type { AccommodationCategory, PricingModelWithExtras } from "@/types";
+import type { PricingModelWithExtras } from "@/types";
 
 // ─── Schemas de validación por categoría ──────────────────────────────────────
 
@@ -35,7 +35,6 @@ type PricingFormValues = z.infer<typeof pricingSchema>;
 
 interface PricingModelFormProps {
   typeId: string;
-  category: AccommodationCategory;
   /** Pricing model existente para pre-poblar el formulario */
   pricingModel: PricingModelWithExtras | null;
   onSaved: (model: PricingModelWithExtras) => void;
@@ -44,13 +43,16 @@ interface PricingModelFormProps {
 /**
  * Formulario de precio base para un AccommodationType.
  *
- * Adapta los campos visibles según la categoría:
- * - apartment / cabin: solo unit_price_per_night
- * - camping: plot_price_per_night + person_price_per_night
+ * Muestra los tres campos de precio disponibles:
+ * - unit_price_per_night: precio por unidad/noche
+ * - plot_price_per_night: precio por parcela/noche
+ * - person_price_per_night: precio por persona/noche
+ *
+ * La calculadora usa unit_price si tiene valor; en caso contrario
+ * usa plot_price + person_price × personas.
  */
 export function PricingModelForm({
   typeId,
-  category,
   pricingModel,
   onSaved,
 }: PricingModelFormProps) {
@@ -79,20 +81,12 @@ export function PricingModelForm({
     });
   }, [pricingModel, reset]);
 
-  const isCamping = category === "parcela";
-
   const onSubmit = async (values: PricingFormValues) => {
     try {
       const payload = {
-        unit_price_per_night: isCamping
-          ? null
-          : values.unit_price_per_night || null,
-        plot_price_per_night: isCamping
-          ? values.plot_price_per_night || null
-          : null,
-        person_price_per_night: isCamping
-          ? values.person_price_per_night || null
-          : null,
+        unit_price_per_night: values.unit_price_per_night || null,
+        plot_price_per_night: values.plot_price_per_night || null,
+        person_price_per_night: values.person_price_per_night || null,
         currency: values.currency,
       };
 
@@ -110,72 +104,74 @@ export function PricingModelForm({
 
   return (
     <form onSubmit={(e) => void handleSubmit(onSubmit)(e)} className="space-y-4">
-      {!isCamping && (
-        <div className="space-y-1">
-          <Label htmlFor="unit_price_per_night">
-            Precio por unidad / noche (
-            {pricingModel?.currency ?? "EUR"})
-          </Label>
-          <Input
-            id="unit_price_per_night"
-            type="number"
-            step="0.01"
-            min="0"
-            placeholder="0.00"
-            {...register("unit_price_per_night")}
-            className="max-w-xs"
-          />
-          {errors.unit_price_per_night && (
-            <p className="text-xs text-red-600">
-              {errors.unit_price_per_night.message}
-            </p>
-          )}
-        </div>
-      )}
+      <div className="space-y-1">
+        <Label htmlFor="unit_price_per_night">
+          Precio por unidad / noche ({pricingModel?.currency ?? "EUR"})
+        </Label>
+        <p className="text-xs text-klyp-gray">
+          Si se configura, la calculadora usará este precio por noche.
+        </p>
+        <Input
+          id="unit_price_per_night"
+          type="number"
+          step="0.01"
+          min="0"
+          placeholder="0.00"
+          {...register("unit_price_per_night")}
+          className="max-w-xs"
+        />
+        {errors.unit_price_per_night && (
+          <p className="text-xs text-red-600">
+            {errors.unit_price_per_night.message}
+          </p>
+        )}
+      </div>
 
-      {isCamping && (
-        <>
-          <div className="space-y-1">
-            <Label htmlFor="plot_price_per_night">
-              Precio parcela / noche (EUR)
-            </Label>
-            <Input
-              id="plot_price_per_night"
-              type="number"
-              step="0.01"
-              min="0"
-              placeholder="0.00"
-              {...register("plot_price_per_night")}
-              className="max-w-xs"
-            />
-            {errors.plot_price_per_night && (
-              <p className="text-xs text-red-600">
-                {errors.plot_price_per_night.message}
-              </p>
-            )}
-          </div>
+      <div className="space-y-1">
+        <Label htmlFor="plot_price_per_night">
+          Precio parcela / noche ({pricingModel?.currency ?? "EUR"})
+        </Label>
+        <p className="text-xs text-klyp-gray">
+          Se usa cuando no hay precio por unidad. Se suma al precio por persona.
+        </p>
+        <Input
+          id="plot_price_per_night"
+          type="number"
+          step="0.01"
+          min="0"
+          placeholder="0.00"
+          {...register("plot_price_per_night")}
+          className="max-w-xs"
+        />
+        {errors.plot_price_per_night && (
+          <p className="text-xs text-red-600">
+            {errors.plot_price_per_night.message}
+          </p>
+        )}
+      </div>
 
-          <div className="space-y-1">
-            <Label htmlFor="person_price_per_night">
-              Precio por persona / noche (EUR)
-            </Label>
-            <Input
-              id="person_price_per_night"
-              type="number"
-              step="0.01"
-              min="0"
-              placeholder="0.00"
-              {...register("person_price_per_night")}
-              className="max-w-xs"
-            />
-            {errors.person_price_per_night && (
-              <p className="text-xs text-red-600">
-                {errors.person_price_per_night.message}
-              </p>
-            )}
-          </div>
-        </>
-      )}
+      <div className="space-y-1">
+        <Label htmlFor="person_price_per_night">
+          Precio por persona / noche ({pricingModel?.currency ?? "EUR"})
+        </Label>
+        <p className="text-xs text-klyp-gray">
+          Se multiplica por el número de personas cuando no hay precio por unidad.
+        </p>
+        <Input
+          id="person_price_per_night"
+          type="number"
+          step="0.01"
+          min="0"
+          placeholder="0.00"
+          {...register("person_price_per_night")}
+          className="max-w-xs"
+        />
+        {errors.person_price_per_night && (
+          <p className="text-xs text-red-600">
+            {errors.person_price_per_night.message}
+          </p>
+        )}
+      </div>
 
       <div className="space-y-1">
         <Label htmlFor="currency">Moneda (código ISO)</Label>

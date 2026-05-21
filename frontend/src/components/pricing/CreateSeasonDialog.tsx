@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { pricingApi } from "@/lib/api";
 import { extractApiErrorMessage } from "@/lib/utils";
-import type { AccommodationCategory, Season } from "@/types";
+import type { Season } from "@/types";
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
@@ -55,7 +55,6 @@ interface CreateSeasonDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   typeId: string;
-  category: AccommodationCategory;
   /** Si se pasa, el dialog opera en modo edición */
   seasonToEdit?: Season | null;
   onSuccess: (season: Season) => void;
@@ -64,18 +63,16 @@ interface CreateSeasonDialogProps {
 /**
  * Dialog para crear o editar una temporada de precios.
  *
- * Muestra los campos de precio relevantes según la categoría del tipo.
+ * Muestra los tres campos de precio disponibles; los vacíos heredan del precio base.
  */
 export function CreateSeasonDialog({
   open,
   onOpenChange,
   typeId,
-  category,
   seasonToEdit,
   onSuccess,
 }: CreateSeasonDialogProps) {
   const isEditing = !!seasonToEdit;
-  const isCamping = category === "parcela";
 
   const {
     register,
@@ -127,15 +124,9 @@ export function CreateSeasonDialog({
         start_date: values.start_date,
         end_date: values.end_date,
         priority: Number(values.priority),
-        unit_price_per_night: !isCamping
-          ? values.unit_price_per_night || null
-          : null,
-        plot_price_per_night: isCamping
-          ? values.plot_price_per_night || null
-          : null,
-        person_price_per_night: isCamping
-          ? values.person_price_per_night || null
-          : null,
+        unit_price_per_night: values.unit_price_per_night || null,
+        plot_price_per_night: values.plot_price_per_night || null,
+        person_price_per_night: values.person_price_per_night || null,
       };
 
       let result: Season;
@@ -240,7 +231,7 @@ export function CreateSeasonDialog({
               Los precios vacíos heredan el valor del precio base del tipo.
             </p>
 
-            {!isCamping && (
+            <div className="space-y-3">
               <div className="space-y-1">
                 <Label htmlFor="unit_price_season">Precio unidad / noche</Label>
                 <Input
@@ -258,48 +249,43 @@ export function CreateSeasonDialog({
                   </p>
                 )}
               </div>
-            )}
-
-            {isCamping && (
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <Label htmlFor="plot_price_season">Precio parcela / noche</Label>
-                  <Input
-                    id="plot_price_season"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="Heredar del precio base"
-                    {...register("plot_price_per_night")}
-                    className="max-w-xs"
-                  />
-                  {errors.plot_price_per_night && (
-                    <p className="text-xs text-red-600">
-                      {errors.plot_price_per_night.message}
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="person_price_season">
-                    Precio por persona / noche
-                  </Label>
-                  <Input
-                    id="person_price_season"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="Heredar del precio base"
-                    {...register("person_price_per_night")}
-                    className="max-w-xs"
-                  />
-                  {errors.person_price_per_night && (
-                    <p className="text-xs text-red-600">
-                      {errors.person_price_per_night.message}
-                    </p>
-                  )}
-                </div>
+              <div className="space-y-1">
+                <Label htmlFor="plot_price_season">Precio parcela / noche</Label>
+                <Input
+                  id="plot_price_season"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="Heredar del precio base"
+                  {...register("plot_price_per_night")}
+                  className="max-w-xs"
+                />
+                {errors.plot_price_per_night && (
+                  <p className="text-xs text-red-600">
+                    {errors.plot_price_per_night.message}
+                  </p>
+                )}
               </div>
-            )}
+              <div className="space-y-1">
+                <Label htmlFor="person_price_season">
+                  Precio por persona / noche
+                </Label>
+                <Input
+                  id="person_price_season"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="Heredar del precio base"
+                  {...register("person_price_per_night")}
+                  className="max-w-xs"
+                />
+                {errors.person_price_per_night && (
+                  <p className="text-xs text-red-600">
+                    {errors.person_price_per_night.message}
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
 
           <DialogFooter className="gap-2 sm:gap-0">

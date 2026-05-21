@@ -150,7 +150,6 @@ import type {
 
 interface AccommodationTypeCreate {
   name: string;
-  type_category: string;
   description?: string | null;
   iva_rate?: number;
 }

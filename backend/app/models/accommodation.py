@@ -16,14 +16,6 @@ from sqlalchemy import JSON
 from sqlmodel import Field, SQLModel
 
 
-class AccommodationCategory(str, Enum):
-    """Categoría funcional del tipo de alojamiento."""
-
-    parcela = "parcela"
-    apartamento = "apartamento"
-    albergue = "albergue"
-
-
 class FieldType(str, Enum):
     """Tipo de dato de un campo personalizado."""
 
@@ -45,12 +37,6 @@ class AccommodationType(SQLModel, table=True):
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     tenant_id: UUID = Field(foreign_key="tenants.id", index=True, nullable=False)
     name: str = Field(max_length=200)
-    type_category: AccommodationCategory = Field(
-        sa_column=Column(
-            SAEnum(AccommodationCategory, name="accommodationcategory"),
-            nullable=False,
-        )
-    )
     description: str | None = Field(default=None, max_length=1000)
     is_active: bool = Field(default=True)
     iva_rate: Decimal = Field(

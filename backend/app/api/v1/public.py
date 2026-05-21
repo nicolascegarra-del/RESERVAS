@@ -142,7 +142,6 @@ async def list_public_accommodation_types(
             PublicAccommodationType(
                 id=t.id,
                 name=t.name,
-                type_category=t.type_category.value if hasattr(t.type_category, "value") else t.type_category,
                 description=t.description,
                 active_unit_count=count,
             )
@@ -270,13 +269,10 @@ async def public_availability(
             price_preview = None
             min_price_per_night = None
 
-        category = accom_type.type_category.value if hasattr(accom_type.type_category, "value") else str(accom_type.type_category)
-
         output.append(
             PublicTypeAvailability(
                 type_id=accom_type.id,
                 type_name=accom_type.name,
-                type_category=category,
                 description=accom_type.description,
                 available_units=unit_availabilities,
                 price_preview=price_preview,

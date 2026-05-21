@@ -57,7 +57,7 @@ export default function AlojamientosPage() {
             className="min-h-[44px] sm:self-start"
           >
             <Plus className="mr-2 h-4 w-4" />
-            Nuevo Tipo
+            Nuevo Tipo de Alojamiento
           </Button>
         )}
       </div>
@@ -110,7 +110,7 @@ export default function AlojamientosPage() {
             Sin tipos de alojamiento
           </h3>
           <p className="mt-1 text-sm text-klyp-gray">
-            Crea el primer tipo para empezar a gestionar el inventario.
+            Crea el primer Tipo de Alojamiento para empezar a gestionar el inventario.
           </p>
           {canManage && (
             <Button
@@ -118,7 +118,7 @@ export default function AlojamientosPage() {
               onClick={() => setIsCreateDialogOpen(true)}
             >
               <Plus className="mr-2 h-4 w-4" />
-              Crear primer tipo
+              Crear Tipo de Alojamiento
             </Button>
           )}
         </div>

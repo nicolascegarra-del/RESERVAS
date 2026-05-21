@@ -5,8 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Building2,
-  Home,
-  Tent,
   Plus,
   Trash2,
   Users,
@@ -38,8 +36,6 @@ import { PricingTab } from "@/components/pricing/PricingTab";
 import { accommodationsApi } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import {
-  CATEGORY_LABELS,
-  CATEGORY_COLORS,
   FIELD_TYPE_LABELS,
   MULTIPLIER_TYPE_LABELS,
 } from "@/types";
@@ -50,12 +46,6 @@ import type {
   Extra,
   AccommodationPhoto,
 } from "@/types";
-
-const CATEGORY_ICONS = {
-  parcela: Tent,
-  apartamento: Home,
-  albergue: Building2,
-} as const;
 
 export default function AccommodationTypeDetailPage() {
   const params = useParams<{ typeId: string }>();
@@ -221,9 +211,6 @@ export default function AccommodationTypeDetailPage() {
     );
   }
 
-  const Icon =
-    CATEGORY_ICONS[accommodationType.type_category] ?? Building2;
-
   return (
     <div className="space-y-6">
       {/* Breadcrumb y acciones */}
@@ -245,18 +232,13 @@ export default function AccommodationTypeDetailPage() {
       <div className="rounded-lg border border-klyp-pale bg-white p-6 shadow-sm">
         <div className="flex items-start gap-4">
           <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-klyp-pale">
-            <Icon className="h-6 w-6 text-klyp-accent" />
+            <Building2 className="h-6 w-6 text-klyp-accent" />
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-xl font-bold text-klyp-navy">
                 {accommodationType.name}
               </h1>
-              <Badge
-                className={CATEGORY_COLORS[accommodationType.type_category]}
-              >
-                {CATEGORY_LABELS[accommodationType.type_category]}
-              </Badge>
               {!accommodationType.is_active && (
                 <Badge className="bg-amber-100 text-amber-800">Inactivo</Badge>
               )}
@@ -612,7 +594,6 @@ export default function AccommodationTypeDetailPage() {
         <TabsContent value="pricing">
           <PricingTab
             typeId={typeId}
-            category={accommodationType.type_category}
             extras={extras}
             canManage={canManage}
           />
