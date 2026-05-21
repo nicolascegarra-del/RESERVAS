@@ -19,9 +19,14 @@ def upgrade() -> None:
     # Usamos SQL raw con IF NOT EXISTS / ADD COLUMN IF NOT EXISTS para que la
     # migración sea idempotente aunque create_all() ya haya creado el ENUM o
     # las tablas antes de que Alembic llegue a ejecutar este upgrade.
-    op.execute(
-        "CREATE TYPE IF NOT EXISTS multipliertype AS ENUM ('fixed', 'per_person', 'per_custom')"
-    )
+    op.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'multipliertype') THEN
+                CREATE TYPE multipliertype AS ENUM ('fixed', 'per_person', 'per_custom');
+            END IF;
+        END $$
+    """)
     op.execute(
         "ALTER TABLE extras ADD COLUMN IF NOT EXISTS price NUMERIC(10,2) NOT NULL DEFAULT 0.00"
     )
