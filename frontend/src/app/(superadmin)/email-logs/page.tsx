@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Mail, RefreshCw, CheckCircle, XCircle, AlertCircle, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import { Mail, RefreshCw, CheckCircle, XCircle, AlertCircle, ChevronLeft, ChevronRight, Trash2, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -22,6 +22,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { mailLogsApi } from "@/lib/api";
 import type { MailLog } from "@/types";
 import {
@@ -48,6 +54,7 @@ export default function SuperAdminMailLogsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [clearing, setClearing] = useState(false);
+  const [previewLog, setPreviewLog] = useState<MailLog | null>(null);
 
   const load = useCallback(async (p: number, sf: string, tf: string) => {
     setLoading(true);
@@ -121,7 +128,7 @@ export default function SuperAdminMailLogsPage() {
             <AlertDialogTrigger asChild>
               <Button variant="outline" size="sm" className="text-red-600 border-red-200 hover:bg-red-50" disabled={clearing || total === 0}>
                 <Trash2 className="h-4 w-4 mr-2" />
-                Vaciar logs
+                Vaciar Logs
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
@@ -166,9 +173,33 @@ export default function SuperAdminMailLogsPage() {
             <SelectItem value="all">Todos los tipos</SelectItem>
             <SelectItem value="confirmation">Confirmación</SelectItem>
             <SelectItem value="reminder">Recordatorio</SelectItem>
+            <SelectItem value="test">Prueba</SelectItem>
+            <SelectItem value="guest_docs_request">Docs. viajeros</SelectItem>
           </SelectContent>
         </Select>
       </div>
+
+      {/* Email preview dialog */}
+      <Dialog open={!!previewLog} onOpenChange={(open) => { if (!open) setPreviewLog(null); }}>
+        <DialogContent className="max-w-2xl w-full">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold text-gray-800 truncate pr-6">
+              {previewLog?.subject}
+            </DialogTitle>
+            <p className="text-xs text-gray-500">Para: {previewLog?.to_email}</p>
+          </DialogHeader>
+          <div className="border border-gray-200 rounded-md overflow-hidden" style={{ height: 480 }}>
+            {previewLog?.body_html && (
+              <iframe
+                srcDoc={previewLog.body_html}
+                sandbox="allow-same-origin"
+                className="w-full h-full"
+                title="Vista previa del email"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Table */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
@@ -182,19 +213,20 @@ export default function SuperAdminMailLogsPage() {
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Tipo</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600 hidden lg:table-cell">SMTP</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Fecha</th>
+                <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-gray-400">
+                  <td colSpan={7} className="px-4 py-12 text-center text-gray-400">
                     Cargando…
                   </td>
                 </tr>
               )}
               {!loading && items.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-gray-400">
+                  <td colSpan={7} className="px-4 py-12 text-center text-gray-400">
                     No hay registros de email
                   </td>
                 </tr>
@@ -233,6 +265,19 @@ export default function SuperAdminMailLogsPage() {
                       day: "2-digit", month: "2-digit", year: "numeric",
                       hour: "2-digit", minute: "2-digit",
                     })}
+                  </td>
+                  <td className="px-4 py-3">
+                    {log.body_html && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 text-gray-400 hover:text-klyp-accent"
+                        onClick={() => setPreviewLog(log)}
+                        title="Ver contenido"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    )}
                   </td>
                 </tr>
               ))}

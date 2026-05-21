@@ -39,6 +39,7 @@ class MailLogRead(BaseModel):
     status: str
     smtp_source: str
     error_message: str | None
+    body_html: str | None
     sent_at: datetime
 
     model_config = {"from_attributes": True}

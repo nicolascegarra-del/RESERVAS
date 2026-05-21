@@ -445,7 +445,7 @@ export interface MailNotificationConfig {
 
 export type MailLogStatus = "sent" | "failed" | "no_smtp";
 export type MailLogSmtpSource = "tenant" | "system" | "none";
-export type MailLogEmailType = "confirmation" | "reminder";
+export type MailLogEmailType = "confirmation" | "reminder" | "test" | "guest_docs_request";
 
 export interface MailLog {
   id: string;
@@ -457,6 +457,7 @@ export interface MailLog {
   status: MailLogStatus;
   smtp_source: MailLogSmtpSource;
   error_message: string | null;
+  body_html: string | null;
   sent_at: string;
 }
 
@@ -482,6 +483,8 @@ export const MAIL_LOG_STATUS_COLORS: Record<MailLogStatus, string> = {
 export const MAIL_LOG_EMAIL_TYPE_LABELS: Record<MailLogEmailType, string> = {
   confirmation: "Confirmación",
   reminder: "Recordatorio",
+  test: "Prueba",
+  guest_docs_request: "Docs. viajeros",
 };
 
 export const MAIL_LOG_SMTP_SOURCE_LABELS: Record<MailLogSmtpSource, string> = {

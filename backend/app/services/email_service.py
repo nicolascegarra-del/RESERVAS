@@ -47,6 +47,7 @@ def _write_mail_log(
     status: str,
     smtp_source: str,
     error_message: str | None,
+    body_html: str | None = None,
 ) -> None:
     try:
         from sqlalchemy.orm import Session
@@ -61,6 +62,7 @@ def _write_mail_log(
                 status=status,
                 smtp_source=smtp_source,
                 error_message=error_message,
+                body_html=body_html,
             ))
             db.commit()
     except Exception as exc:
@@ -198,6 +200,7 @@ def send_guest_docs_email(
         status=status,
         smtp_source=smtp_source,
         error_message=error,
+        body_html=html,
     )
     return status
 
@@ -291,6 +294,7 @@ def send_confirmation_email(
         status=status,
         smtp_source=smtp_source,
         error_message=error,
+        body_html=html,
     )
 
 
@@ -313,6 +317,7 @@ def send_reminder_email(
         status=status,
         smtp_source=smtp_source,
         error_message=error,
+        body_html=html,
     )
 
 
@@ -386,5 +391,6 @@ def send_smtp_test_email(
         status=status,
         smtp_source=smtp_source,
         error_message=error_str,
+        body_html=html,
     )
     return status, error_str
