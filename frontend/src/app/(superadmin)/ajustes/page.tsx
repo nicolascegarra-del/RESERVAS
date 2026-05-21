@@ -26,6 +26,9 @@ export default function ConfiguracionPage() {
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [verifiedAt, setVerifiedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sendingTestEmail, setSendingTestEmail] = useState(false);
+  const [testEmailAddr, setTestEmailAddr] = useState("");
+  const [sendTestEmailResult, setSendTestEmailResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   const [form, setForm] = useState<SMTPForm>({
     smtp_host: "",
@@ -90,6 +93,18 @@ export default function ConfiguracionPage() {
             : undefined;
       setTestResult({ ok: false, message: msg ?? "Error al conectar. Revisa host, puerto y credenciales." });
     } finally { setTesting(false); }
+  };
+
+  const handleSendTestEmail = async () => {
+    if (!testEmailAddr) return;
+    setSendingTestEmail(true); setSendTestEmailResult(null);
+    try {
+      await systemApi.sendTestEmail(testEmailAddr);
+      setSendTestEmailResult({ ok: true, message: `Email enviado a ${testEmailAddr}.` });
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: { error?: { message?: string } } } } };
+      setSendTestEmailResult({ ok: false, message: err.response?.data?.detail?.error?.message ?? "Error al enviar." });
+    } finally { setSendingTestEmail(false); }
   };
 
   const f = (key: keyof SMTPForm) => ({
@@ -179,6 +194,33 @@ export default function ConfiguracionPage() {
                 {testing ? "Probando..." : "Probar Conexión"}
               </Button>
             </div>
+
+            {/* Enviar email de prueba */}
+            <div className="flex gap-2 items-center">
+              <Input
+                type="email"
+                placeholder="destinatario@ejemplo.com"
+                value={testEmailAddr}
+                onChange={(e) => setTestEmailAddr(e.target.value)}
+                className="flex-1"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={sendingTestEmail || !testEmailAddr || !form.smtp_host}
+                onClick={() => void handleSendTestEmail()}
+                className="shrink-0"
+              >
+                {sendingTestEmail ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                {sendingTestEmail ? "Enviando..." : "Enviar email de prueba"}
+              </Button>
+            </div>
+            {sendTestEmailResult && (
+              <p className={`text-sm flex items-center gap-1.5 ${sendTestEmailResult.ok ? "text-green-600" : "text-red-600"}`}>
+                <span className={`inline-block h-2 w-2 rounded-full ${sendTestEmailResult.ok ? "bg-green-500" : "bg-red-500"}`} />
+                {sendTestEmailResult.message}
+              </p>
+            )}
 
             {/* Info sobre la prioridad */}
             <div className="rounded-lg bg-klyp-pale border border-klyp-accent/20 px-4 py-3 text-xs text-klyp-navy space-y-1">

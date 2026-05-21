@@ -116,6 +116,8 @@ export const tenantsApi = {
     redsys_secret_key?: string;
   }>) => client.patch<TenantConfig>(`/api/v1/superadmin/tenants/${id}/config`, data),
   testSMTP: (id: string) => client.post<{ verified_at: string }>(`/api/v1/superadmin/tenants/${id}/test-smtp`),
+  sendTestEmail: (id: string, toEmail: string) =>
+    client.post<{ status: string; to: string }>(`/api/v1/superadmin/tenants/${id}/send-test-email`, { to_email: toEmail }),
 };
 
 // ─── Usuarios ─────────────────────────────────────────────────────────────────
@@ -170,6 +172,8 @@ export const systemApi = {
   updateSMTP: (data: Partial<SystemSMTP & { smtp_password?: string }>) =>
     client.patch<SystemSMTP>("/api/v1/superadmin/system-smtp", data),
   testSMTP: () => client.post<{ verified_at: string }>("/api/v1/superadmin/system-smtp/test"),
+  sendTestEmail: (toEmail: string) =>
+    client.post<{ status: string; to: string }>("/api/v1/superadmin/system-smtp/send-test-email", { to_email: toEmail }),
 };
 
 // ─── Permisos por rol ─────────────────────────────────────────────────────────

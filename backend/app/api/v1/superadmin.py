@@ -13,6 +13,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from pydantic import BaseModel
 from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -231,6 +232,10 @@ async def upload_tenant_logo(
 logger = logging.getLogger(__name__)
 
 
+class TestEmailPayload(BaseModel):
+    to_email: str
+
+
 def _test_smtp_connection(host: str, port: int, user: str, password: str | None) -> None:
     use_ssl = port == 465
     # SSL context permisivo para prueba de conectividad (acepta self-signed certs)
@@ -407,6 +412,34 @@ async def test_tenant_smtp(tenant_id: UUID, _: SuperAdminDep, session: SessionDe
     return {"verified_at": tenant.smtp_verified_at.isoformat()}
 
 
+@router.post("/tenants/{tenant_id}/send-test-email", status_code=200)
+async def send_tenant_test_email(
+    tenant_id: UUID, data: TestEmailPayload, _: SuperAdminDep, session: SessionDep
+) -> dict:
+    from app.services.email_service import send_smtp_test_email
+    tenant = await session.get(Tenant, tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail={"error": {"code": "TENANT_NOT_FOUND", "message": "Empresa no encontrada."}})
+    if not (tenant.smtp_host and tenant.smtp_user and tenant.smtp_from):
+        raise HTTPException(
+            status_code=400,
+            detail={"error": {"code": "SMTP_NOT_CONFIGURED", "message": "Configura host, usuario y remitente SMTP antes de enviar."}},
+        )
+    password = decrypt_secret(tenant.smtp_password) if tenant.smtp_password else None
+    loop = asyncio.get_running_loop()
+    status, error = await loop.run_in_executor(
+        None, send_smtp_test_email,
+        data.to_email, tenant.smtp_host, tenant.smtp_port,
+        tenant.smtp_user, password, tenant.smtp_from, "tenant", tenant_id,
+    )
+    if status == "failed":
+        raise HTTPException(
+            status_code=400,
+            detail={"error": {"code": "SEND_FAILED", "message": f"Error al enviar: {error}"}},
+        )
+    return {"status": "sent", "to": data.to_email}
+
+
 # ─── SMTP global del sistema ──────────────────────────────────────────────────
 
 
@@ -493,6 +526,33 @@ async def test_system_smtp(_: SuperAdminDep, session: SessionDep) -> dict:
     session.add(s)
     await session.commit()
     return {"verified_at": s.smtp_verified_at.isoformat()}
+
+
+@router.post("/system-smtp/send-test-email", status_code=200)
+async def send_system_test_email(
+    data: TestEmailPayload, _: SuperAdminDep, session: SessionDep
+) -> dict:
+    from app.services.email_service import send_smtp_test_email
+    from uuid import UUID as _UUID
+    s = await _get_or_create_system_settings(session)
+    if not (s.smtp_host and s.smtp_user and s.smtp_from):
+        raise HTTPException(
+            status_code=400,
+            detail={"error": {"code": "SMTP_NOT_CONFIGURED", "message": "Configura host, usuario y remitente SMTP antes de enviar."}},
+        )
+    password = decrypt_secret(s.smtp_password) if s.smtp_password else None
+    loop = asyncio.get_running_loop()
+    status, error = await loop.run_in_executor(
+        None, send_smtp_test_email,
+        data.to_email, s.smtp_host, s.smtp_port,
+        s.smtp_user, password, s.smtp_from, "system", _UUID(int=0),
+    )
+    if status == "failed":
+        raise HTTPException(
+            status_code=400,
+            detail={"error": {"code": "SEND_FAILED", "message": f"Error al enviar: {error}"}},
+        )
+    return {"status": "sent", "to": data.to_email}
 
 
 # ─── Usuarios ─────────────────────────────────────────────────────────────────

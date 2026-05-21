@@ -448,6 +448,9 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
   const [saving, setSaving] = useState(false);
   const [testingSmtp, setTestingSmtp] = useState(false);
   const [smtpTestResult, setSmtpTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [sendingTestEmail, setSendingTestEmail] = useState(false);
+  const [testEmailAddr, setTestEmailAddr] = useState("");
+  const [sendTestEmailResult, setSendTestEmailResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(
@@ -524,6 +527,18 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
       const err = e as { response?: { data?: { detail?: { error?: { message?: string } } } } };
       setSmtpTestResult({ ok: false, message: err.response?.data?.detail?.error?.message ?? "Error al conectar." });
     } finally { setTestingSmtp(false); }
+  };
+
+  const handleSendTestEmail = async () => {
+    if (!testEmailAddr) return;
+    setSendingTestEmail(true); setSendTestEmailResult(null);
+    try {
+      await tenantsApi.sendTestEmail(tenant.id, testEmailAddr);
+      setSendTestEmailResult({ ok: true, message: `Email enviado a ${testEmailAddr}.` });
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: { error?: { message?: string } } } } };
+      setSendTestEmailResult({ ok: false, message: err.response?.data?.detail?.error?.message ?? "Error al enviar." });
+    } finally { setSendingTestEmail(false); }
   };
 
   const handleSave = async () => {
@@ -782,6 +797,33 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
                       {testingSmtp ? "Probando..." : "Probar Conexión"}
                     </Button>
                   </div>
+
+                  {/* Enviar email de prueba */}
+                  <div className="flex gap-2 items-center">
+                    <Input
+                      type="email"
+                      placeholder="destinatario@ejemplo.com"
+                      value={testEmailAddr}
+                      onChange={(e) => setTestEmailAddr(e.target.value)}
+                      className="flex-1"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={sendingTestEmail || !testEmailAddr || !config.smtp_host}
+                      onClick={() => void handleSendTestEmail()}
+                      className="shrink-0"
+                    >
+                      {sendingTestEmail ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                      {sendingTestEmail ? "Enviando..." : "Enviar email de prueba"}
+                    </Button>
+                  </div>
+                  {sendTestEmailResult && (
+                    <p className={`text-sm flex items-center gap-1.5 ${sendTestEmailResult.ok ? "text-green-600" : "text-red-600"}`}>
+                      <span className={`inline-block h-2 w-2 rounded-full ${sendTestEmailResult.ok ? "bg-green-500" : "bg-red-500"}`} />
+                      {sendTestEmailResult.message}
+                    </p>
+                  )}
 
                   <div className="flex items-start gap-2.5 p-3 bg-klyp-pale rounded-lg border border-klyp-accent/20 text-xs text-klyp-gray">
                     <Info className="h-3.5 w-3.5 text-klyp-accent shrink-0 mt-0.5" />

@@ -12,6 +12,7 @@ Todos los intentos de envío se registran en la tabla mail_logs.
 import logging
 import re
 import smtplib
+import ssl
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from uuid import UUID
@@ -313,3 +314,77 @@ def send_reminder_email(
         smtp_source=smtp_source,
         error_message=error,
     )
+
+
+def send_smtp_test_email(
+    to_email: str,
+    smtp_host: str,
+    smtp_port: int,
+    smtp_user: str,
+    smtp_password: str | None,
+    smtp_from: str,
+    smtp_source: str,
+    tenant_id: UUID,
+) -> tuple[str, str | None]:
+    """Envía un email de prueba. Devuelve (status, error_message | None)."""
+    subject = "Email de prueba — Klyp RESERVAS"
+    html = """
+    <html><body style="font-family:Arial,sans-serif;max-width:500px;margin:auto;padding:20px">
+      <div style="background:#051937;padding:20px;border-radius:8px 8px 0 0">
+        <h2 style="color:white;margin:0">Klyp RESERVAS</h2>
+      </div>
+      <div style="background:#f9f9f9;padding:24px;border-radius:0 0 8px 8px">
+        <h3 style="color:#051937">&#10003; Email de prueba enviado correctamente</h3>
+        <p>La configuraci&oacute;n SMTP est&aacute; funcionando. Este email confirma que el servidor
+        de correo puede enviar mensajes correctamente.</p>
+        <p style="color:#999;font-size:12px;margin-top:24px">
+          Enviado desde el panel de administraci&oacute;n de Klyp RESERVAS.
+        </p>
+      </div>
+    </body></html>
+    """
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = smtp_from
+    msg["To"] = to_email
+    msg.attach(MIMEText(html, "html", "utf-8"))
+
+    ssl_context = ssl.create_default_context()
+    ssl_context.check_hostname = False
+    ssl_context.verify_mode = ssl.CERT_NONE
+
+    use_ssl = smtp_port == 465
+    error_str: str | None = None
+    status = "failed"
+    try:
+        if use_ssl:
+            with smtplib.SMTP_SSL(smtp_host, smtp_port, context=ssl_context, timeout=15) as server:
+                server.ehlo()
+                if smtp_password:
+                    server.login(smtp_user, smtp_password)
+                server.sendmail(smtp_from, to_email, msg.as_string())
+        else:
+            with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as server:
+                server.ehlo()
+                server.starttls(context=ssl_context)
+                server.ehlo()
+                if smtp_password:
+                    server.login(smtp_user, smtp_password)
+                server.sendmail(smtp_from, to_email, msg.as_string())
+        status = "sent"
+        logger.info("Test email enviado a %s (%s)", to_email, smtp_source)
+    except Exception as exc:
+        error_str = str(exc)[:500]
+        logger.error("Error enviando test email a %s: %s", to_email, exc)
+
+    _write_mail_log(
+        tenant_id=tenant_id,
+        reservation_id=None,
+        to_email=to_email,
+        subject=subject,
+        email_type="test",
+        status=status,
+        smtp_source=smtp_source,
+        error_message=error_str,
+    )
+    return status, error_str
