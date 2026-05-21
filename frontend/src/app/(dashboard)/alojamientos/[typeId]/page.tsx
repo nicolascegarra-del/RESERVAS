@@ -30,6 +30,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { CreateUnitDialog } from "@/components/accommodations/CreateUnitDialog";
+import { BulkCreateUnitsDialog } from "@/components/accommodations/BulkCreateUnitsDialog";
 import { CreateFieldDialog } from "@/components/accommodations/CreateFieldDialog";
 import { AccommodationCalendar } from "@/components/reservations/AccommodationCalendar";
 import { CreateExtraDialog } from "@/components/accommodations/CreateExtraDialog";
@@ -71,6 +72,7 @@ export default function AccommodationTypeDetailPage() {
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
   const [isCreateUnitOpen, setIsCreateUnitOpen] = useState(false);
+  const [isBulkCreateOpen, setIsBulkCreateOpen] = useState(false);
   const [isCreateFieldOpen, setIsCreateFieldOpen] = useState(false);
   const [isCreateExtraOpen, setIsCreateExtraOpen] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -108,6 +110,12 @@ export default function AccommodationTypeDetailPage() {
   const handleUnitCreated = (newUnit: AccommodationUnit) => {
     setAccommodationType((prev) =>
       prev ? { ...prev, units: [...prev.units, newUnit] } : prev,
+    );
+  };
+
+  const handleBulkUnitsCreated = (newUnits: AccommodationUnit[]) => {
+    setAccommodationType((prev) =>
+      prev ? { ...prev, units: [...prev.units, ...newUnits] } : prev,
     );
   };
 
@@ -327,7 +335,16 @@ export default function AccommodationTypeDetailPage() {
         <TabsContent value="units">
           <div className="space-y-4">
             {canManage && (
-              <div className="flex justify-end">
+              <div className="flex justify-end gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setIsBulkCreateOpen(true)}
+                  className="min-h-[44px]"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Crear en lote
+                </Button>
                 <Button
                   size="sm"
                   onClick={() => setIsCreateUnitOpen(true)}
@@ -689,6 +706,12 @@ export default function AccommodationTypeDetailPage() {
         onOpenChange={setIsCreateUnitOpen}
         typeId={typeId}
         onSuccess={handleUnitCreated}
+      />
+      <BulkCreateUnitsDialog
+        open={isBulkCreateOpen}
+        onOpenChange={setIsBulkCreateOpen}
+        typeId={typeId}
+        onSuccess={handleBulkUnitsCreated}
       />
       <CreateFieldDialog
         open={isCreateFieldOpen}
