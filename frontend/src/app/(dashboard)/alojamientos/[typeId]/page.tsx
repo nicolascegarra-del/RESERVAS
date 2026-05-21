@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   Building2,
   Plus,
+  Pencil,
   Trash2,
   Users,
   Tag,
@@ -28,10 +29,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { CreateUnitDialog } from "@/components/accommodations/CreateUnitDialog";
+import { EditUnitDialog } from "@/components/accommodations/EditUnitDialog";
 import { BulkCreateUnitsDialog } from "@/components/accommodations/BulkCreateUnitsDialog";
 import { CreateFieldDialog } from "@/components/accommodations/CreateFieldDialog";
 import { AccommodationCalendar } from "@/components/reservations/AccommodationCalendar";
 import { CreateExtraDialog } from "@/components/accommodations/CreateExtraDialog";
+import { EditTypeDialog } from "@/components/accommodations/EditTypeDialog";
 import { PricingTab } from "@/components/pricing/PricingTab";
 import { accommodationsApi } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
@@ -40,6 +43,7 @@ import {
   MULTIPLIER_TYPE_LABELS,
 } from "@/types";
 import type {
+  AccommodationType,
   AccommodationTypeWithUnits,
   AccommodationUnit,
   FieldDefinition,
@@ -65,6 +69,8 @@ export default function AccommodationTypeDetailPage() {
   const [isBulkCreateOpen, setIsBulkCreateOpen] = useState(false);
   const [isCreateFieldOpen, setIsCreateFieldOpen] = useState(false);
   const [isCreateExtraOpen, setIsCreateExtraOpen] = useState(false);
+  const [isEditTypeOpen, setIsEditTypeOpen] = useState(false);
+  const [unitToEdit, setUnitToEdit] = useState<AccommodationUnit | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const user = useAuthStore((state) => state.user);
@@ -97,9 +103,34 @@ export default function AccommodationTypeDetailPage() {
     void fetchData();
   }, [fetchData]);
 
+  const handleTypeUpdated = (updated: AccommodationType) => {
+    setAccommodationType((prev) =>
+      prev ? { ...prev, ...updated } : prev,
+    );
+  };
+
+  const handleDeleteType = async () => {
+    if (!accommodationType) return;
+    if (!confirm(`¿Eliminar el tipo "${accommodationType.name}"? Esta acción no se puede deshacer.`)) return;
+    try {
+      await accommodationsApi.deleteType(accommodationType.id);
+      router.push("/alojamientos");
+    } catch {
+      // silencioso
+    }
+  };
+
   const handleUnitCreated = (newUnit: AccommodationUnit) => {
     setAccommodationType((prev) =>
       prev ? { ...prev, units: [...prev.units, newUnit] } : prev,
+    );
+  };
+
+  const handleUnitUpdated = (updated: AccommodationUnit) => {
+    setAccommodationType((prev) =>
+      prev
+        ? { ...prev, units: prev.units.map((u) => (u.id === updated.id ? updated : u)) }
+        : prev,
     );
   };
 
@@ -214,18 +245,38 @@ export default function AccommodationTypeDetailPage() {
   return (
     <div className="space-y-6">
       {/* Breadcrumb y acciones */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => router.back()}
-            className="min-h-[44px]"
-          >
-            <ArrowLeft className="mr-1 h-4 w-4" />
-            Volver
-          </Button>
-        </div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.back()}
+          className="min-h-[44px] self-start"
+        >
+          <ArrowLeft className="mr-1 h-4 w-4" />
+          Volver
+        </Button>
+        {canManage && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsEditTypeOpen(true)}
+              className="min-h-[44px]"
+            >
+              <Pencil className="mr-2 h-4 w-4" />
+              Editar tipo
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void handleDeleteType()}
+              className="min-h-[44px] text-red-600 hover:text-red-700 hover:border-red-300"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Eliminar tipo
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Info del tipo */}
@@ -382,6 +433,15 @@ export default function AccommodationTypeDetailPage() {
                         {canManage && (
                           <TableCell>
                             <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-klyp-gray hover:text-klyp-accent"
+                                onClick={() => setUnitToEdit(unit)}
+                                aria-label={`Editar ${unit.name}`}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -682,6 +742,22 @@ export default function AccommodationTypeDetailPage() {
       </Tabs>
 
       {/* Dialogs */}
+      {accommodationType && (
+        <EditTypeDialog
+          open={isEditTypeOpen}
+          onOpenChange={setIsEditTypeOpen}
+          accommodationType={accommodationType}
+          onSuccess={handleTypeUpdated}
+        />
+      )}
+      {unitToEdit && (
+        <EditUnitDialog
+          open={!!unitToEdit}
+          onOpenChange={(open) => { if (!open) setUnitToEdit(null); }}
+          unit={unitToEdit}
+          onSuccess={handleUnitUpdated}
+        />
+      )}
       <CreateUnitDialog
         open={isCreateUnitOpen}
         onOpenChange={setIsCreateUnitOpen}
