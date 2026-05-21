@@ -11,11 +11,14 @@ from app.models.billing import (
 )
 from app.models.accommodation import (
     AccommodationCategory,
+    AccommodationPhoto,
+    AccommodationPriceRule,
     AccommodationType,
     AccommodationUnit,
     Extra,
     FieldDefinition,
     FieldType,
+    MultiplierType,
 )
 from app.models.cancellation import CancellationPolicy, RefundOrder, RefundOrderStatus
 from app.models.pricing import ExtraPrice, PricingModel, Season
@@ -36,6 +39,7 @@ from app.models.role_permission import RolePermission
 from app.models.system_settings import SystemSettings
 from app.models.tenant import Tenant
 from app.models.user import User, UserRole
+from app.models.user_preference import UserPreference
 
 __all__ = [
     "Invoice",
@@ -49,11 +53,14 @@ __all__ = [
     "User",
     "UserRole",
     "AccommodationCategory",
+    "AccommodationPhoto",
+    "AccommodationPriceRule",
     "AccommodationType",
     "AccommodationUnit",
     "FieldDefinition",
     "FieldType",
     "Extra",
+    "MultiplierType",
     "PricingModel",
     "Season",
     "ExtraPrice",
@@ -76,4 +83,5 @@ __all__ = [
     "RefundOrderStatus",
     "RolePermission",
     "SystemSettings",
+    "UserPreference",
 ]

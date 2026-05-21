@@ -28,7 +28,7 @@ def upgrade() -> None:
         ),
     )
 
-    op.execute("CREATE TYPE multipliertype AS ENUM ('fixed', 'per_person', 'per_custom')")
+    op.execute("CREATE TYPE IF NOT EXISTS multipliertype AS ENUM ('fixed', 'per_person', 'per_custom')")
     op.add_column(
         "extras",
         sa.Column(
