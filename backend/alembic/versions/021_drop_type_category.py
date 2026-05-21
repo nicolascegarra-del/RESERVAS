@@ -10,7 +10,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "021_drop_type_category"
-down_revision = "020_accommodation_extras_pricing_photos"
+down_revision = "020_extras_pricing_photos"
 branch_labels = None
 depends_on = None
 
