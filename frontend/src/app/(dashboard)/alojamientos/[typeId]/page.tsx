@@ -13,7 +13,7 @@ import {
   Tag,
   Zap,
   DollarSign,
-  Image,
+  Image as ImageIcon,
   Upload,
   X,
 } from "lucide-react";
@@ -315,7 +315,7 @@ export default function AccommodationTypeDetailPage() {
             Precios
           </TabsTrigger>
           <TabsTrigger value="photos">
-            <Image className="mr-1 h-3.5 w-3.5" />
+            <ImageIcon className="mr-1 h-3.5 w-3.5" />
             Fotos ({photos.length})
           </TabsTrigger>
           <TabsTrigger value="ocupacion">
@@ -636,7 +636,7 @@ export default function AccommodationTypeDetailPage() {
 
             {photos.length === 0 ? (
               <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-klyp-pale bg-white py-12 text-center">
-                <Image className="h-8 w-8 text-klyp-pale" />
+                <ImageIcon className="h-8 w-8 text-klyp-pale" />
                 <p className="mt-3 text-sm font-medium text-klyp-navy">Sin fotos</p>
                 <p className="text-xs text-klyp-gray mt-1">
                   Sube imágenes del alojamiento (JPEG, PNG, WebP — máx. 10 MB).

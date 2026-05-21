@@ -13,6 +13,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 
 # Variables públicas de Next.js — deben declararse como ARG para que estén
 # disponibles en tiempo de build (next build las incrusta en el bundle).
