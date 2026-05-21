@@ -8,7 +8,7 @@ Create Date: 2026-05-20
 
 from alembic import op
 
-revision = "020_accommodation_extras_pricing_photos"
+revision = "020_extras_pricing_photos"
 down_revision = "019_billing_manual_creditnote"
 branch_labels = None
 depends_on = None
