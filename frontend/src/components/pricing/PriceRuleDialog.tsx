@@ -47,7 +47,6 @@ const priceRuleSchema = z.object({
     .number({ invalid_type_error: "Introduce un número válido" })
     .int()
     .min(1, "Mínimo 1 noche"),
-  priority: z.number({ invalid_type_error: "Introduce un número válido" }).int(),
 });
 
 type PriceRuleFormData = z.infer<typeof priceRuleSchema>;
@@ -83,7 +82,6 @@ export function PriceRuleDialog({
       date_to: "",
       price_per_night: 0,
       min_nights: 1,
-      priority: 0,
     },
   });
 
@@ -97,7 +95,6 @@ export function PriceRuleDialog({
               date_to: rule.date_to,
               price_per_night: Number(rule.price_per_night),
               min_nights: rule.min_nights,
-              priority: rule.priority,
             }
           : {
               name: "",
@@ -105,7 +102,6 @@ export function PriceRuleDialog({
               date_to: "",
               price_per_night: 0,
               min_nights: 1,
-              priority: 0,
             },
       );
     }
@@ -229,21 +225,6 @@ export function PriceRuleDialog({
                 </p>
               )}
             </div>
-          </div>
-
-          {/* Prioridad */}
-          <div className="space-y-1.5">
-            <Label htmlFor="rule-priority">Prioridad</Label>
-            <Input
-              id="rule-priority"
-              type="number"
-              placeholder="0"
-              {...register("priority", { valueAsNumber: true })}
-            />
-            <p className="text-xs text-klyp-gray">
-              En caso de solapamiento de fechas, prevalece la regla con mayor
-              prioridad.
-            </p>
           </div>
 
           {/* Error servidor */}

@@ -97,7 +97,7 @@ export interface FieldDefinition {
   created_at: string;
 }
 
-export type MultiplierType = "fixed" | "per_person" | "per_custom";
+export type MultiplierType = "fixed" | "per_person" | "per_person_night" | "per_night";
 
 export interface Extra {
   id: string;
@@ -108,7 +108,6 @@ export interface Extra {
   iva_rate: string;
   price: string;
   multiplier_type: MultiplierType;
-  multiplier_label: string | null;
   created_at: string;
 }
 
@@ -121,7 +120,6 @@ export interface AccommodationPriceRule {
   date_to: string;
   price_per_night: string;
   min_nights: number;
-  priority: number;
   is_active: boolean;
   created_at: string;
 }
@@ -137,9 +135,10 @@ export interface AccommodationPhoto {
 }
 
 export const MULTIPLIER_TYPE_LABELS: Record<MultiplierType, string> = {
-  fixed: "Precio fijo",
-  per_person: "Por persona",
-  per_custom: "Por cantidad",
+  fixed: "Precio Fijo x Reserva",
+  per_person: "Precio x Personas",
+  per_person_night: "Precio x Persona y Día de Alojamiento",
+  per_night: "Precio x Días de Alojamiento",
 };
 
 /** AccommodationType con sus unidades — devuelto por GET /types/{id} */
@@ -246,7 +245,6 @@ export interface Season {
   name: string;
   start_date: string; // "YYYY-MM-DD"
   end_date: string;
-  priority: number;
   unit_price_per_night: string | null;
   plot_price_per_night: string | null;
   person_price_per_night: string | null;
@@ -645,4 +643,32 @@ export interface RedsysFormData {
   Ds_SignatureVersion: string;
   Ds_MerchantParameters: string;
   Ds_Signature: string;
+}
+
+// ─── Bloqueos ─────────────────────────────────────────────────────────────────
+
+export interface Blocking {
+  id: string;
+  tenant_id: string;
+  accommodation_unit_id: string;
+  unit_name: string;
+  type_name: string;
+  start_date: string;
+  end_date: string;
+  reason: string | null;
+  created_at: string;
+}
+
+export interface BlockingConflictReservation {
+  id: string;
+  guest_name: string;
+  check_in: string;
+  check_out: string;
+  status: string;
+}
+
+export interface BlockingConflict {
+  unit_id: string;
+  unit_name: string;
+  reservations: BlockingConflictReservation[];
 }

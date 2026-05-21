@@ -727,7 +727,6 @@ async def create_extra(
         iva_rate=data.iva_rate,
         price=data.price,
         multiplier_type=data.multiplier_type,
-        multiplier_label=data.multiplier_label,
     )
     session.add(extra)
     await session.commit()
@@ -835,7 +834,7 @@ async def list_price_rules(
         select(AccommodationPriceRule).where(
             AccommodationPriceRule.accommodation_type_id == type_id,
             AccommodationPriceRule.tenant_id == tenant_id,
-        ).order_by(AccommodationPriceRule.priority.desc(), AccommodationPriceRule.date_from)
+        ).order_by(AccommodationPriceRule.date_from)
     )
     return [AccommodationPriceRuleRead.model_validate(r) for r in result.all()]
 
@@ -847,6 +846,28 @@ async def create_price_rule(
     tenant_id: UUID,
 ) -> AccommodationPriceRuleRead:
     await get_accommodation_type(session, type_id, tenant_id)
+
+    # Verificar solapamiento de fechas con reglas activas existentes
+    existing_result = await session.exec(
+        select(AccommodationPriceRule).where(
+            AccommodationPriceRule.accommodation_type_id == type_id,
+            AccommodationPriceRule.tenant_id == tenant_id,
+            AccommodationPriceRule.is_active.is_(True),
+        )
+    )
+    for existing_rule in existing_result.all():
+        if data.date_from <= existing_rule.date_to and existing_rule.date_from <= data.date_to:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "error": {
+                        "code": "DATE_RANGE_OVERLAP",
+                        "message": f"Las fechas se solapan con la regla '{existing_rule.name}'.",
+                        "field": "date_from",
+                    }
+                },
+            )
+
     from uuid import uuid4
     rule = AccommodationPriceRule(
         id=uuid4(),
@@ -857,7 +878,6 @@ async def create_price_rule(
         date_to=data.date_to,
         price_per_night=data.price_per_night,
         min_nights=data.min_nights,
-        priority=data.priority,
         is_active=data.is_active,
     )
     session.add(rule)
@@ -873,7 +893,35 @@ async def update_price_rule(
     tenant_id: UUID,
 ) -> AccommodationPriceRuleRead:
     rule = await _get_price_rule(session, rule_id, tenant_id)
-    for field, value in data.model_dump(exclude_none=True).items():
+
+    update_data = data.model_dump(exclude_none=True)
+    new_date_from = update_data.get("date_from", rule.date_from)
+    new_date_to = update_data.get("date_to", rule.date_to)
+
+    # Verificar solapamiento excluyendo la regla actual
+    if "date_from" in update_data or "date_to" in update_data:
+        existing_result = await session.exec(
+            select(AccommodationPriceRule).where(
+                AccommodationPriceRule.accommodation_type_id == rule.accommodation_type_id,
+                AccommodationPriceRule.tenant_id == tenant_id,
+                AccommodationPriceRule.is_active.is_(True),
+                AccommodationPriceRule.id != rule_id,
+            )
+        )
+        for existing_rule in existing_result.all():
+            if new_date_from <= existing_rule.date_to and existing_rule.date_from <= new_date_to:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail={
+                        "error": {
+                            "code": "DATE_RANGE_OVERLAP",
+                            "message": f"Las fechas se solapan con la regla '{existing_rule.name}'.",
+                            "field": "date_from",
+                        }
+                    },
+                )
+
+    for field, value in update_data.items():
         setattr(rule, field, value)
     session.add(rule)
     await session.commit()

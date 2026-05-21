@@ -23,6 +23,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.database import get_session
 from app.core.dependencies import get_current_user, require_role
 from app.models.accommodation import AccommodationUnit
+from app.models.blocking import Blocking as BlockingModel
 from app.models.reservation import Reservation, ReservationStatus
 from app.models.user import User, UserRole
 from app.schemas.reservation import (
@@ -306,6 +307,23 @@ async def get_calendar(
     res_result = await session.exec(res_query)
     all_reservations = res_result.all()
 
+    # Cargar bloqueos que solapan con el mes
+    blocking_query = (
+        select(BlockingModel, AccommodationUnit)
+        .join(AccommodationUnit, BlockingModel.accommodation_unit_id == AccommodationUnit.id)
+        .where(
+            BlockingModel.tenant_id == effective_tenant_id,
+            BlockingModel.start_date <= last_day,
+            BlockingModel.end_date >= first_day,
+        )
+    )
+    if accommodation_type_id:
+        blocking_query = blocking_query.where(
+            AccommodationUnit.accommodation_type_id == accommodation_type_id
+        )
+    blocking_result = await session.exec(blocking_query)
+    all_blockings = blocking_result.all()  # list of (Blocking, AccommodationUnit) tuples
+
     # Parsear status_filter para mostrar en UI (no afecta ocupación)
     display_status: ReservationStatus | None = None
     if status_filter:
@@ -336,6 +354,17 @@ async def get_calendar(
         occupied = len(occupancy_res)
         occupancy_pct = round(occupied / total_units * 100) if total_units > 0 else 0
 
+        day_blockings = [
+            {
+                "blocking_id": str(b.id),
+                "unit_id": str(b.accommodation_unit_id),
+                "unit_name": u.name,
+                "reason": b.reason,
+            }
+            for b, u in all_blockings
+            if b.start_date <= current <= b.end_date
+        ]
+
         days.append({
             "date": current.isoformat(),
             "weekday": current.weekday(),
@@ -345,6 +374,7 @@ async def get_calendar(
             "check_ins": len(check_ins),
             "check_outs": len(check_outs),
             "reservations": [_res_to_dict(r) for r in day_res],
+            "blockings": day_blockings,
         })
         current += timedelta(days=1)
 

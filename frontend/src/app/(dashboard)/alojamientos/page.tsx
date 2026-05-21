@@ -48,7 +48,7 @@ export default function AlojamientosPage() {
         <div>
           <h1 className="text-2xl font-bold text-klyp-navy">Alojamientos</h1>
           <p className="mt-1 text-sm text-klyp-gray">
-            Gestiona los tipos, unidades, campos personalizados y extras del inventario.
+            Gestiona los tipos, unidades, características sin coste y extras del inventario.
           </p>
         </div>
         {canManage && (

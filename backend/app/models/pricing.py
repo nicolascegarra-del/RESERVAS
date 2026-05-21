@@ -64,8 +64,7 @@ class Season(SQLModel, table=True):
     """
     Tramo de temporada con precios propios para un AccommodationType.
 
-    Si varias temporadas activas se solapan en una fecha, prevalece
-    la de mayor valor de `priority` (mayor número = mayor prioridad).
+    Los solapamientos de fechas se previenen en la capa de servicio.
     Los precios de la temporada sobrescriben los del PricingModel base.
     """
 
@@ -80,8 +79,6 @@ class Season(SQLModel, table=True):
     name: str = Field(max_length=200)
     start_date: date = Field(nullable=False)
     end_date: date = Field(nullable=False)
-    # Mayor número = mayor prioridad en solapamientos
-    priority: int = Field(default=0)
 
     # Precios de temporada (sobrescriben PricingModel base si no son None)
     unit_price_per_night: Decimal | None = Field(

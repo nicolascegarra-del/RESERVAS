@@ -146,6 +146,7 @@ import type {
   RefundOrder,
   PaginatedRefundOrders,
   PaginatedMailLogs,
+  Blocking,
 } from "@/types";
 
 interface AccommodationTypeCreate {
@@ -201,7 +202,6 @@ interface ExtraCreate {
   iva_rate?: number;
   price?: number;
   multiplier_type?: string;
-  multiplier_label?: string | null;
 }
 
 interface ExtraUpdate {
@@ -211,7 +211,6 @@ interface ExtraUpdate {
   iva_rate?: number;
   price?: number;
   multiplier_type?: string;
-  multiplier_label?: string | null;
 }
 
 interface PriceRuleCreate {
@@ -220,7 +219,6 @@ interface PriceRuleCreate {
   date_to: string;
   price_per_night: number;
   min_nights?: number;
-  priority?: number;
   is_active?: boolean;
 }
 
@@ -230,7 +228,6 @@ interface PriceRuleUpdate {
   date_to?: string;
   price_per_night?: number;
   min_nights?: number;
-  priority?: number;
   is_active?: boolean;
 }
 
@@ -382,7 +379,6 @@ interface SeasonCreate {
   name: string;
   start_date: string;
   end_date: string;
-  priority?: number;
   unit_price_per_night?: string | null;
   plot_price_per_night?: string | null;
   person_price_per_night?: string | null;
@@ -393,7 +389,6 @@ interface SeasonUpdate {
   name?: string;
   start_date?: string;
   end_date?: string;
-  priority?: number;
   unit_price_per_night?: string | null;
   plot_price_per_night?: string | null;
   person_price_per_night?: string | null;
@@ -534,6 +529,13 @@ export interface CalendarDayReservation {
   nights: number;
 }
 
+export interface CalendarDayBlocking {
+  blocking_id: string;
+  unit_id: string;
+  unit_name: string;
+  reason: string | null;
+}
+
 export interface CalendarDay {
   date: string;
   weekday: number;
@@ -543,6 +545,7 @@ export interface CalendarDay {
   check_ins: number;
   check_outs: number;
   reservations: CalendarDayReservation[];
+  blockings: CalendarDayBlocking[];
 }
 
 export interface CalendarMonth {
@@ -1078,4 +1081,21 @@ export const preferencesApi = {
     apiClient.get<{ widget_config: WidgetConfig }>("/api/v1/me/preferences"),
   update: (widget_config: WidgetConfig) =>
     apiClient.patch<{ widget_config: WidgetConfig }>("/api/v1/me/preferences", { widget_config }),
+};
+
+// ─── Bloqueos ─────────────────────────────────────────────────────────────────
+
+export const blockingsApi = {
+  list: (params?: { unit_id?: string; from_date?: string; to_date?: string }) =>
+    apiClient.get<Blocking[]>("/api/v1/blockings", { params }),
+
+  create: (data: {
+    unit_ids: string[];
+    start_date: string;
+    end_date: string;
+    reason?: string | null;
+  }) => apiClient.post<Blocking[]>("/api/v1/blockings", data),
+
+  delete: (blockingId: string) =>
+    apiClient.delete(`/api/v1/blockings/${blockingId}`),
 };

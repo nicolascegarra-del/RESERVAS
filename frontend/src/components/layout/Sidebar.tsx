@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   Building2,
+  Ban,
   CalendarDays,
   RotateCcw,
   Settings,
@@ -62,6 +63,12 @@ export function Sidebar() {
       label: "Alojamientos",
       href: "/alojamientos",
       icon: Building2,
+    },
+    {
+      label: "Bloqueos",
+      href: "/bloqueos",
+      icon: Ban,
+      adminOnly: true,
     },
     {
       label: "Reservas",

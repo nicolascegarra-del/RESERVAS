@@ -68,7 +68,6 @@ class SeasonCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     start_date: date
     end_date: date
-    priority: int = Field(default=0, ge=0)
     unit_price_per_night: Decimal | None = Field(
         default=None, ge=0, decimal_places=2
     )
@@ -94,7 +93,6 @@ class SeasonUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     start_date: date | None = None
     end_date: date | None = None
-    priority: int | None = Field(default=None, ge=0)
     unit_price_per_night: Decimal | None = None
     plot_price_per_night: Decimal | None = None
     person_price_per_night: Decimal | None = None
@@ -119,7 +117,6 @@ class SeasonRead(BaseModel):
     name: str
     start_date: date
     end_date: date
-    priority: int
     unit_price_per_night: Decimal | None
     plot_price_per_night: Decimal | None
     person_price_per_night: Decimal | None

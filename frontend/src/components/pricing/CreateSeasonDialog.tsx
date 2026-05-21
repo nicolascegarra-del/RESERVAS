@@ -33,11 +33,6 @@ const seasonSchema = z
     name: z.string().min(1, "El nombre es obligatorio.").max(200),
     start_date: z.string().min(1, "La fecha de inicio es obligatoria."),
     end_date: z.string().min(1, "La fecha de fin es obligatoria."),
-    priority: z
-      .string()
-      .refine((val) => !isNaN(Number(val)) && Number(val) >= 0, {
-        message: "La prioridad debe ser un número >= 0.",
-      }),
     unit_price_per_night: decimalOptional,
     plot_price_per_night: decimalOptional,
     person_price_per_night: decimalOptional,
@@ -85,7 +80,6 @@ export function CreateSeasonDialog({
       name: "",
       start_date: "",
       end_date: "",
-      priority: "0",
       unit_price_per_night: "",
       plot_price_per_night: "",
       person_price_per_night: "",
@@ -99,7 +93,6 @@ export function CreateSeasonDialog({
         name: seasonToEdit.name,
         start_date: seasonToEdit.start_date,
         end_date: seasonToEdit.end_date,
-        priority: String(seasonToEdit.priority),
         unit_price_per_night: seasonToEdit.unit_price_per_night ?? "",
         plot_price_per_night: seasonToEdit.plot_price_per_night ?? "",
         person_price_per_night: seasonToEdit.person_price_per_night ?? "",
@@ -109,7 +102,6 @@ export function CreateSeasonDialog({
         name: "",
         start_date: "",
         end_date: "",
-        priority: "0",
         unit_price_per_night: "",
         plot_price_per_night: "",
         person_price_per_night: "",
@@ -123,7 +115,6 @@ export function CreateSeasonDialog({
         name: values.name,
         start_date: values.start_date,
         end_date: values.end_date,
-        priority: Number(values.priority),
         unit_price_per_night: values.unit_price_per_night || null,
         plot_price_per_night: values.plot_price_per_night || null,
         person_price_per_night: values.person_price_per_night || null,
@@ -201,26 +192,6 @@ export function CreateSeasonDialog({
                 </p>
               )}
             </div>
-          </div>
-
-          <div className="space-y-1">
-            <Label htmlFor="priority">
-              Prioridad{" "}
-              <span className="text-xs text-klyp-gray">
-                (mayor número = prevalece en solapamientos)
-              </span>
-            </Label>
-            <Input
-              id="priority"
-              type="number"
-              min="0"
-              step="1"
-              {...register("priority")}
-              className="w-28"
-            />
-            {errors.priority && (
-              <p className="text-xs text-red-600">{errors.priority.message}</p>
-            )}
           </div>
 
           <div className="border-t border-klyp-pale pt-4">

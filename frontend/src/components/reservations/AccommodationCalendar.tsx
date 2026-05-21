@@ -2,9 +2,9 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, TrendingUp, LogIn } from "lucide-react";
+import { Ban, ChevronLeft, ChevronRight, TrendingUp, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { reservationsApi, type CalendarDay, type CalendarMonth } from "@/lib/api";
+import { reservationsApi, type CalendarDay, type CalendarDayBlocking, type CalendarMonth } from "@/lib/api";
 
 const MONTHS_ES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -246,6 +246,15 @@ export function AccommodationCalendar({ accommodationTypeId }: Props) {
                       {day.check_outs > 0 && <span className="text-blue-700 font-medium ml-0.5">↑{day.check_outs}</span>}
                     </div>
                   )}
+
+                  {day.blockings && day.blockings.length > 0 && (
+                    <span className="mt-0.5 inline-flex items-center gap-0.5 rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700">
+                      <Ban className="h-2.5 w-2.5" />
+                      {day.blockings.length === 1
+                        ? day.blockings[0]!.unit_name
+                        : `${day.blockings.length} bloq.`}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -289,7 +298,7 @@ export function AccommodationCalendar({ accommodationTypeId }: Props) {
                   <div className="flex-1 min-w-0">
                     <span className="font-medium text-klyp-navy">{r.guest_name}</span>
                     <span className="text-klyp-gray ml-2 text-xs">
-                      {fmtDate(r.check_in)} → {fmtDate(r.check_out)} · {r.nights}n · {r.num_persons} pax
+                      {fmtDate(r.check_in)} &rarr; {fmtDate(r.check_out)} &middot; {r.nights}n &middot; {r.num_persons} pax
                     </span>
                   </div>
                   <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-xs font-medium ${STATUS_BADGE[r.status] ?? "bg-gray-100 text-gray-600"}`}>
@@ -297,6 +306,26 @@ export function AccommodationCalendar({ accommodationTypeId }: Props) {
                   </span>
                   {r.total_price != null && (
                     <span className="text-klyp-navy font-medium text-xs shrink-0">{r.total_price.toFixed(0)} €</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {selectedDay.blockings && selectedDay.blockings.length > 0 && (
+            <div className="mt-3 space-y-1 border-t border-klyp-pale pt-3">
+              <p className="text-xs font-semibold text-red-700 mb-1.5">Unidades bloqueadas</p>
+              {selectedDay.blockings.map((b: CalendarDayBlocking) => (
+                <div
+                  key={b.blocking_id}
+                  className="flex items-center gap-2 rounded bg-red-50 px-2 py-1.5"
+                >
+                  <Ban className="h-3 w-3 text-red-500 flex-shrink-0" />
+                  <span className="text-xs font-medium text-red-800">{b.unit_name}</span>
+                  {b.reason && (
+                    <span className="text-xs text-red-600 ml-auto truncate max-w-[120px]">
+                      {b.reason}
+                    </span>
                   )}
                 </div>
               ))}

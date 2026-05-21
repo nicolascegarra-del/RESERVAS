@@ -227,12 +227,19 @@ async def upload_tenant_logo(
 
 
 def _test_smtp_connection(host: str, port: int, user: str, password: str | None) -> None:
-    with smtplib.SMTP(host, port, timeout=10) as server:
-        server.ehlo()
-        server.starttls()
-        server.ehlo()
-        if password:
-            server.login(user, password)
+    use_ssl = port == 465
+    if use_ssl:
+        with smtplib.SMTP_SSL(host, port, timeout=15) as server:
+            server.ehlo()
+            if password:
+                server.login(user, password)
+    else:
+        with smtplib.SMTP(host, port, timeout=15) as server:
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
+            if password:
+                server.login(user, password)
 
 
 # ─── Configuración por empresa (Stripe + SMTP) ────────────────────────────────

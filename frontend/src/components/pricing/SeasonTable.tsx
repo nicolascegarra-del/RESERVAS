@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Plus, Pencil, Trash2, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -32,6 +31,7 @@ interface SeasonTableProps {
  *
  * Incluye botones de crear, editar y eliminar (solo para canManage).
  * En móvil, las columnas de precio se ocultan para mantener legibilidad.
+ * Los solapamientos de fechas se previenen en el backend.
  */
 export function SeasonTable({
   typeId,
@@ -127,7 +127,6 @@ export function SeasonTable({
               <TableRow>
                 <TableHead>Nombre</TableHead>
                 <TableHead className="hidden sm:table-cell">Fechas</TableHead>
-                <TableHead>Prior.</TableHead>
                 <TableHead className="hidden md:table-cell">
                   Unidad/noche
                 </TableHead>
@@ -154,11 +153,6 @@ export function SeasonTable({
                   </TableCell>
                   <TableCell className="hidden sm:table-cell text-sm text-klyp-gray whitespace-nowrap">
                     {formatDateRange(season.start_date, season.end_date)}
-                  </TableCell>
-                  <TableCell>
-                    <Badge className="bg-klyp-pale text-klyp-text-dark text-xs">
-                      {season.priority}
-                    </Badge>
                   </TableCell>
                   <TableCell className="hidden md:table-cell text-sm">
                     {formatPrice(season.unit_price_per_night)}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -26,107 +26,93 @@ import {
 import { accommodationsApi } from "@/lib/api";
 import type { Extra } from "@/types";
 
-const createExtraSchema = z.object({
-  name: z
-    .string()
-    .min(1, "El nombre es obligatorio")
-    .max(200, "Máximo 200 caracteres"),
+const schema = z.object({
+  name: z.string().min(1, "El nombre es obligatorio").max(200, "Máximo 200 caracteres"),
   description: z.string().max(500, "Máximo 500 caracteres").optional(),
-  iva_rate: z
-    .number({ invalid_type_error: "Introduce un número válido" })
-    .min(0)
-    .max(100),
-  price: z
-    .number({ invalid_type_error: "Introduce un número válido" })
-    .min(0, "El precio no puede ser negativo"),
+  iva_rate: z.number({ invalid_type_error: "Introduce un número válido" }).min(0).max(100),
+  price: z.number({ invalid_type_error: "Introduce un número válido" }).min(0, "El precio no puede ser negativo"),
   multiplier_type: z.enum(["fixed", "per_person", "per_person_night", "per_night"]),
+  is_active: z.boolean(),
 });
 
-type CreateExtraFormData = z.infer<typeof createExtraSchema>;
+type FormData = z.infer<typeof schema>;
 
-interface CreateExtraDialogProps {
+interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess: (newExtra: Extra) => void;
+  extra: Extra;
+  onSuccess: (updated: Extra) => void;
 }
 
-export function CreateExtraDialog({
-  open,
-  onOpenChange,
-  onSuccess,
-}: CreateExtraDialogProps) {
-  const [serverError, setServerError] = useState<string | null>(null);
-
+export function EditExtraDialog({ open, onOpenChange, extra, onSuccess }: Props) {
   const {
     register,
     handleSubmit,
     reset,
-    watch,
     control,
     formState: { errors, isSubmitting },
-  } = useForm<CreateExtraFormData>({
-    resolver: zodResolver(createExtraSchema),
-    defaultValues: { iva_rate: 10, price: 0, multiplier_type: "fixed" },
+  } = useForm<FormData>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      name: extra.name,
+      description: extra.description ?? "",
+      iva_rate: Number(extra.iva_rate),
+      price: Number(extra.price),
+      multiplier_type: extra.multiplier_type,
+      is_active: extra.is_active,
+    },
   });
 
-  const multiplierType = watch("multiplier_type");
+  useEffect(() => {
+    if (open) {
+      reset({
+        name: extra.name,
+        description: extra.description ?? "",
+        iva_rate: Number(extra.iva_rate),
+        price: Number(extra.price),
+        multiplier_type: extra.multiplier_type,
+        is_active: extra.is_active,
+      });
+    }
+  }, [open, extra, reset]);
 
   const handleClose = () => {
-    reset();
-    setServerError(null);
+    if (isSubmitting) return;
     onOpenChange(false);
   };
 
-  const onSubmit = async (data: CreateExtraFormData) => {
-    setServerError(null);
+  const onSubmit = async (data: FormData) => {
     try {
-      const response = await accommodationsApi.createExtra({
+      const res = await accommodationsApi.updateExtra(extra.id, {
         name: data.name,
-        description: data.description ?? null,
+        description: data.description || null,
         iva_rate: data.iva_rate,
         price: data.price,
         multiplier_type: data.multiplier_type,
+        is_active: data.is_active,
       });
-      reset();
-      onSuccess(response.data);
+      onSuccess(res.data);
       onOpenChange(false);
-    } catch (error: unknown) {
-      const apiError = error as {
-        response?: { data?: { error?: { message?: string } } };
-      };
-      const message =
-        apiError.response?.data?.error?.message ??
-        "Error al crear el extra. Inténtalo de nuevo.";
-      setServerError(message);
+    } catch {
+      // El error se maneja silenciosamente; el usuario puede reintentar
     }
-  };
-
-  const multiplierHelperText: Record<string, string> = {
-    fixed: "Se cobra una vez, independientemente de personas o noches.",
-    per_person: "Se multiplica por el número de personas.",
-    per_person_night: "Se multiplica por el número de personas y las noches de alojamiento.",
-    per_night: "Se multiplica por los días de alojamiento.",
   };
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Nuevo Extra de Contratación</DialogTitle>
-          <DialogDescription>
-            Define un servicio adicional disponible para las reservas.
-          </DialogDescription>
+          <DialogTitle>Editar Extra de Contratación</DialogTitle>
+          <DialogDescription>Modifica los datos del extra.</DialogDescription>
         </DialogHeader>
-
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           {/* Nombre */}
           <div className="space-y-1.5">
-            <Label htmlFor="extra-name">
+            <Label htmlFor="edit-extra-name">
               Nombre <span className="text-red-500">*</span>
             </Label>
             <Input
-              id="extra-name"
-              placeholder="Ej: Electricidad, Wifi, Parking"
+              id="edit-extra-name"
               {...register("name")}
               aria-invalid={!!errors.name}
             />
@@ -137,28 +123,26 @@ export function CreateExtraDialog({
 
           {/* Descripción */}
           <div className="space-y-1.5">
-            <Label htmlFor="extra-description">Descripción</Label>
+            <Label htmlFor="edit-extra-desc">Descripción</Label>
             <textarea
-              id="extra-description"
+              id="edit-extra-desc"
               rows={2}
-              placeholder="Descripción opcional del servicio"
               className="w-full rounded-md border border-klyp-pale bg-white px-3 py-2 text-sm text-klyp-text-dark placeholder:text-klyp-gray focus:outline-none focus:ring-2 focus:ring-klyp-accent focus:ring-offset-2 resize-none"
               {...register("description")}
             />
           </div>
 
-          {/* Precio + IVA en fila */}
+          {/* Precio + IVA */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="extra-price">
+              <Label htmlFor="edit-extra-price">
                 Precio (€) <span className="text-red-500">*</span>
               </Label>
               <Input
-                id="extra-price"
+                id="edit-extra-price"
                 type="number"
                 step="0.01"
                 min="0"
-                placeholder="0.00"
                 {...register("price", { valueAsNumber: true })}
                 aria-invalid={!!errors.price}
               />
@@ -166,22 +150,19 @@ export function CreateExtraDialog({
                 <p className="text-xs text-red-600">{errors.price.message}</p>
               )}
             </div>
-
             <div className="space-y-1.5">
-              <Label htmlFor="extra-iva">
+              <Label htmlFor="edit-extra-iva">
                 IVA (%) <span className="text-red-500">*</span>
               </Label>
               <div className="relative">
                 <Input
-                  id="extra-iva"
+                  id="edit-extra-iva"
                   type="number"
                   step="0.01"
                   min="0"
                   max="100"
-                  placeholder="10"
                   className="pr-7"
                   {...register("iva_rate", { valueAsNumber: true })}
-                  aria-invalid={!!errors.iva_rate}
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-klyp-gray">
                   %
@@ -190,7 +171,7 @@ export function CreateExtraDialog({
             </div>
           </div>
 
-          {/* Tipo de multiplicador */}
+          {/* Multiplicador */}
           <div className="space-y-1.5">
             <Label>Multiplicador de precio</Label>
             <Controller
@@ -199,7 +180,7 @@ export function CreateExtraDialog({
               render={({ field }) => (
                 <Select value={field.value} onValueChange={field.onChange}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecciona tipo" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="fixed">Precio Fijo x Reserva</SelectItem>
@@ -210,17 +191,22 @@ export function CreateExtraDialog({
                 </Select>
               )}
             />
-            <p className="text-xs text-klyp-gray">
-              {multiplierHelperText[multiplierType] ?? ""}
-            </p>
           </div>
 
-          {/* Error servidor */}
-          {serverError && (
-            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
-              {serverError}
-            </p>
-          )}
+          {/* Estado */}
+          <div className="space-y-1.5">
+            <Label htmlFor="edit-extra-active">Estado</Label>
+            <select
+              id="edit-extra-active"
+              className="w-full rounded-md border border-klyp-pale bg-white px-3 py-2 text-sm text-klyp-text-dark focus:outline-none focus:ring-2 focus:ring-klyp-accent focus:ring-offset-2"
+              {...register("is_active", {
+                setValueAs: (v: unknown) => v === "true" || v === true,
+              })}
+            >
+              <option value="true">Activo</option>
+              <option value="false">Inactivo</option>
+            </select>
+          </div>
 
           <DialogFooter className="pt-2">
             <Button
@@ -233,7 +219,7 @@ export function CreateExtraDialog({
             </Button>
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Crear Extra
+              Guardar cambios
             </Button>
           </DialogFooter>
         </form>

@@ -650,29 +650,6 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
 
             {/* ── General ── */}
             <TabsContent value="general" className="space-y-5 mt-0">
-              {/* Logo upload */}
-              <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
-                <div className="h-16 w-16 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center bg-white overflow-hidden shrink-0">
-                  {!logoPreview && <Building2 className="h-6 w-6 text-gray-300" />}
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  {logoPreview && <img src={logoPreview} alt="Logo" className="h-full w-full object-contain" />}
-                </div>
-                <div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                    className="hidden"
-                    onChange={(e) => void handleLogoChange(e)}
-                  />
-                  <Button variant="outline" size="sm" disabled={uploadingLogo} onClick={() => fileInputRef.current?.click()}>
-                    {uploadingLogo ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
-                    {uploadingLogo ? "Subiendo..." : "Cambiar Logo"}
-                  </Button>
-                  <p className="text-xs text-klyp-gray mt-1">PNG, JPEG, WebP o SVG</p>
-                </div>
-              </div>
-
               <TenantFormFields form={form} setForm={setForm} />
             </TabsContent>
 
@@ -906,7 +883,7 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
                 </div>
               </div>
 
-              {/* Logo upload (re-uses the same input/handler) */}
+              {/* Logo upload */}
               <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
                 <div className="h-14 w-14 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center bg-white overflow-hidden shrink-0">
                   {!logoPreview && <Building2 className="h-5 w-5 text-gray-300" />}
@@ -914,6 +891,13 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
                   {logoPreview && <img src={logoPreview} alt="Logo" className="h-full w-full object-contain" />}
                 </div>
                 <div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    className="hidden"
+                    onChange={(e) => void handleLogoChange(e)}
+                  />
                   <Button variant="outline" size="sm" disabled={uploadingLogo} onClick={() => fileInputRef.current?.click()}>
                     {uploadingLogo ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
                     {uploadingLogo ? "Subiendo..." : "Cambiar Logo"}

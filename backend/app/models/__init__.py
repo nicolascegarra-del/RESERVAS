@@ -21,6 +21,7 @@ from app.models.accommodation import (
 )
 from app.models.cancellation import CancellationPolicy, RefundOrder, RefundOrderStatus
 from app.models.pricing import ExtraPrice, PricingModel, Season
+from app.models.blocking import Blocking
 from app.models.change_request import ChangeRequestStatus, ChangeRequestType, ReservationChangeRequest
 from app.models.reservation import Reservation, ReservationStatus
 from app.models.reservation_guest import (
@@ -62,6 +63,7 @@ __all__ = [
     "PricingModel",
     "Season",
     "ExtraPrice",
+    "Blocking",
     "ReservationChangeRequest",
     "ChangeRequestType",
     "ChangeRequestStatus",

@@ -106,9 +106,10 @@ class FieldDefinition(SQLModel, table=True):
 class MultiplierType(str, Enum):
     """Tipo de multiplicador para calcular el precio de un extra."""
 
-    fixed = "fixed"                   # Precio fijo por reserva
-    per_person = "per_person"         # Precio × número de personas
-    per_custom = "per_custom"         # Precio × valor personalizado (ej: mascotas)
+    fixed = "fixed"                               # Precio fijo por reserva
+    per_person = "per_person"                     # Precio × personas
+    per_person_night = "per_person_night"         # Precio × personas × noches
+    per_night = "per_night"                       # Precio × noches
 
 
 class Extra(SQLModel, table=True):
@@ -144,8 +145,6 @@ class Extra(SQLModel, table=True):
             server_default="fixed",
         ),
     )
-    # Etiqueta del multiplicador personalizado (ej: "por mascota", "por vehículo")
-    multiplier_label: str | None = Field(default=None, max_length=100)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -154,7 +153,7 @@ class AccommodationPriceRule(SQLModel, table=True):
     Regla de precio por tramo de fechas para un tipo de alojamiento.
 
     Permite definir tarifas de temporada (alta, media, baja) por tipo.
-    En caso de solapamiento, prevalece la regla de mayor prioridad.
+    Los solapamientos de fechas se previenen en la capa de servicio.
     """
 
     __tablename__ = "accommodation_price_rules"
@@ -171,7 +170,6 @@ class AccommodationPriceRule(SQLModel, table=True):
         sa_column=Column(Numeric(10, 2), nullable=False)
     )
     min_nights: int = Field(default=1, ge=1)
-    priority: int = Field(default=0)
     is_active: bool = Field(default=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 

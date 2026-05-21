@@ -172,7 +172,7 @@ async def get_seasons(
     tenant_id: UUID,
 ) -> list[SeasonRead]:
     """
-    Lista todas las temporadas de un AccommodationType ordenadas por prioridad desc.
+    Lista todas las temporadas de un AccommodationType ordenadas por start_date asc.
 
     Args:
         session: Sesión de BD.
@@ -180,7 +180,7 @@ async def get_seasons(
         tenant_id: Tenant del usuario autenticado.
 
     Returns:
-        Lista de SeasonRead ordenada por priority desc, luego start_date asc.
+        Lista de SeasonRead ordenada por start_date asc.
     """
     result = await session.exec(
         select(Season)
@@ -188,7 +188,7 @@ async def get_seasons(
             Season.accommodation_type_id == type_id,
             Season.tenant_id == tenant_id,
         )
-        .order_by(Season.priority.desc(), Season.start_date)
+        .order_by(Season.start_date)
     )
     return [SeasonRead.model_validate(s) for s in result.all()]
 
@@ -233,6 +233,8 @@ async def create_season(
     """
     Crea una temporada para un AccommodationType.
 
+    Rechaza la creación si las fechas se solapan con una temporada activa existente.
+
     Args:
         session: Sesión de BD.
         data: Datos de la temporada.
@@ -241,14 +243,37 @@ async def create_season(
 
     Returns:
         SeasonRead de la temporada creada.
+
+    Raises:
+        HTTPException 422: Si las fechas se solapan con una temporada activa.
     """
+    # Verificar solapamiento con temporadas activas existentes
+    existing_result = await session.exec(
+        select(Season).where(
+            Season.accommodation_type_id == type_id,
+            Season.tenant_id == tenant_id,
+            Season.is_active.is_(True),
+        )
+    )
+    for existing_season in existing_result.all():
+        if data.start_date <= existing_season.end_date and existing_season.start_date <= data.end_date:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "error": {
+                        "code": "DATE_RANGE_OVERLAP",
+                        "message": f"Las fechas se solapan con la temporada '{existing_season.name}'.",
+                        "field": "start_date",
+                    }
+                },
+            )
+
     season = Season(
         tenant_id=tenant_id,
         accommodation_type_id=type_id,
         name=data.name,
         start_date=data.start_date,
         end_date=data.end_date,
-        priority=data.priority,
         unit_price_per_night=data.unit_price_per_night,
         plot_price_per_night=data.plot_price_per_night,
         person_price_per_night=data.person_price_per_night,
@@ -269,16 +294,20 @@ async def update_season(
     """
     Actualiza los campos proporcionados de una Season.
 
+    Rechaza la actualización si las nuevas fechas se solapan con otras
+    temporadas activas del mismo tipo (excluyendo la temporada actual).
+
     Raises:
         HTTPException 404: Si no existe.
+        HTTPException 422: Si las fechas son inválidas o se solapan.
     """
     season = await get_season(session, season_id, tenant_id)
     update_data = data.model_dump(exclude_none=True)
 
     # Validar coherencia de fechas si se actualiza solo una de las dos
-    start = update_data.get("start_date", season.start_date)
-    end = update_data.get("end_date", season.end_date)
-    if end <= start:
+    new_start = update_data.get("start_date", season.start_date)
+    new_end = update_data.get("end_date", season.end_date)
+    if new_end <= new_start:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail={
@@ -289,6 +318,29 @@ async def update_season(
                 }
             },
         )
+
+    # Verificar solapamiento excluyendo la temporada actual
+    if "start_date" in update_data or "end_date" in update_data:
+        existing_result = await session.exec(
+            select(Season).where(
+                Season.accommodation_type_id == season.accommodation_type_id,
+                Season.tenant_id == tenant_id,
+                Season.is_active.is_(True),
+                Season.id != season_id,
+            )
+        )
+        for existing_season in existing_result.all():
+            if new_start <= existing_season.end_date and existing_season.start_date <= new_end:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail={
+                        "error": {
+                            "code": "DATE_RANGE_OVERLAP",
+                            "message": f"Las fechas se solapan con la temporada '{existing_season.name}'.",
+                            "field": "start_date",
+                        }
+                    },
+                )
 
     for field, value in update_data.items():
         setattr(season, field, value)
@@ -479,18 +531,17 @@ def _find_active_season_for_date(
     target_date: date,
 ) -> Season | None:
     """
-    Encuentra la Season activa con mayor prioridad que incluye una fecha.
+    Encuentra la primera Season activa que incluye una fecha.
 
-    Itera sobre las temporadas (ya ordenadas por prioridad desc) y devuelve
-    la primera que contenga la fecha. Si hay solapamiento, prevalece la de
-    mayor prioridad (mayor número).
+    Los solapamientos están prevenidos en la capa de servicio, por lo que
+    como máximo una temporada activa puede contener una fecha dada.
 
     Args:
-        seasons: Lista de Season activas ordenadas por priority desc.
+        seasons: Lista de Season activas.
         target_date: Fecha a evaluar.
 
     Returns:
-        Season con mayor prioridad que aplica, o None si ninguna aplica.
+        Season que aplica, o None si ninguna aplica.
     """
     for season in seasons:
         if season.is_active and season.start_date <= target_date <= season.end_date:
@@ -603,7 +654,7 @@ async def calculate_price(
             },
         )
 
-    # 3. Cargar temporadas activas ordenadas por prioridad desc
+    # 3. Cargar temporadas activas ordenadas por start_date
     seasons_result = await session.exec(
         select(Season)
         .where(
@@ -611,7 +662,7 @@ async def calculate_price(
             Season.tenant_id == tenant_id,
             Season.is_active.is_(True),
         )
-        .order_by(Season.priority.desc())
+        .order_by(Season.start_date)
     )
     active_seasons = list(seasons_result.all())
 

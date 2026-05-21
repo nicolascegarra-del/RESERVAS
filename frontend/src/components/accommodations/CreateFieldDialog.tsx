@@ -139,7 +139,7 @@ export function CreateFieldDialog({
       };
       const message =
         apiError.response?.data?.error?.message ??
-        "Error al crear el campo. Inténtalo de nuevo.";
+        "Error al crear la característica. Inténtalo de nuevo.";
       setServerError(message);
     }
   };
@@ -148,9 +148,9 @@ export function CreateFieldDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Nuevo campo personalizado</DialogTitle>
+          <DialogTitle>Nueva Característica sin Coste</DialogTitle>
           <DialogDescription>
-            Define un campo adicional para las unidades de este tipo.
+            Define una característica adicional para las unidades de este tipo.
           </DialogDescription>
         </DialogHeader>
 
@@ -277,7 +277,7 @@ export function CreateFieldDialog({
                 className="h-4 w-4 rounded border-klyp-pale accent-klyp-accent"
                 {...register("is_required")}
               />
-              <span className="text-sm text-klyp-text-dark">Campo obligatorio</span>
+              <span className="text-sm text-klyp-text-dark">Característica obligatoria</span>
             </label>
 
             <div className="flex items-center gap-2">
@@ -312,7 +312,7 @@ export function CreateFieldDialog({
             </Button>
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Crear Campo
+              Crear Característica
             </Button>
           </DialogFooter>
         </form>

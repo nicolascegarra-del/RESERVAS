@@ -120,7 +120,6 @@ class ExtraCreate(BaseModel):
     iva_rate: Decimal = Field(default=Decimal("10.00"), ge=0, decimal_places=2)
     price: Decimal = Field(default=Decimal("0.00"), ge=0, decimal_places=2)
     multiplier_type: MultiplierType = MultiplierType.fixed
-    multiplier_label: str | None = Field(default=None, max_length=100)
 
 
 class ExtraUpdate(BaseModel):
@@ -130,7 +129,6 @@ class ExtraUpdate(BaseModel):
     iva_rate: Decimal | None = Field(default=None, ge=0, decimal_places=2)
     price: Decimal | None = Field(default=None, ge=0, decimal_places=2)
     multiplier_type: MultiplierType | None = None
-    multiplier_label: str | None = Field(default=None, max_length=100)
 
 
 class ExtraRead(BaseModel):
@@ -142,7 +140,6 @@ class ExtraRead(BaseModel):
     iva_rate: Decimal
     price: Decimal
     multiplier_type: MultiplierType
-    multiplier_label: str | None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -165,7 +162,6 @@ class AccommodationPriceRuleCreate(BaseModel):
     )
     price_per_night: Decimal = Field(ge=0, decimal_places=2)
     min_nights: int = Field(default=1, ge=1)
-    priority: int = Field(default=0)
     is_active: bool = True
 
 
@@ -175,7 +171,6 @@ class AccommodationPriceRuleUpdate(BaseModel):
     date_to: str | None = Field(default=None, max_length=5, pattern=r"^\d{2}-\d{2}$")
     price_per_night: Decimal | None = Field(default=None, ge=0, decimal_places=2)
     min_nights: int | None = Field(default=None, ge=1)
-    priority: int | None = None
     is_active: bool | None = None
 
 
@@ -188,7 +183,6 @@ class AccommodationPriceRuleRead(BaseModel):
     date_to: str
     price_per_night: Decimal
     min_nights: int
-    priority: int
     is_active: bool
     created_at: datetime
 

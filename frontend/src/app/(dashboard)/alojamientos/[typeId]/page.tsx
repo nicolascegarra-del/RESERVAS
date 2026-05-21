@@ -34,6 +34,7 @@ import { BulkCreateUnitsDialog } from "@/components/accommodations/BulkCreateUni
 import { CreateFieldDialog } from "@/components/accommodations/CreateFieldDialog";
 import { AccommodationCalendar } from "@/components/reservations/AccommodationCalendar";
 import { CreateExtraDialog } from "@/components/accommodations/CreateExtraDialog";
+import { EditExtraDialog } from "@/components/accommodations/EditExtraDialog";
 import { EditTypeDialog } from "@/components/accommodations/EditTypeDialog";
 import { PricingTab } from "@/components/pricing/PricingTab";
 import { accommodationsApi } from "@/lib/api";
@@ -71,6 +72,7 @@ export default function AccommodationTypeDetailPage() {
   const [isCreateExtraOpen, setIsCreateExtraOpen] = useState(false);
   const [isEditTypeOpen, setIsEditTypeOpen] = useState(false);
   const [unitToEdit, setUnitToEdit] = useState<AccommodationUnit | null>(null);
+  const [extraToEdit, setExtraToEdit] = useState<Extra | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const user = useAuthStore((state) => state.user);
@@ -148,6 +150,10 @@ export default function AccommodationTypeDetailPage() {
     setExtras((prev) => [...prev, newExtra]);
   };
 
+  const handleExtraUpdated = (updated: Extra) => {
+    setExtras((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+  };
+
   const handleDeleteUnit = async (unitId: string) => {
     if (!confirm("¿Desactivar esta unidad?")) return;
     try {
@@ -166,7 +172,7 @@ export default function AccommodationTypeDetailPage() {
   };
 
   const handleDeleteField = async (fieldId: string) => {
-    if (!confirm("¿Eliminar este campo personalizado? Esta acción no se puede deshacer.")) return;
+    if (!confirm("¿Eliminar esta característica sin coste? Esta acción no se puede deshacer.")) return;
     try {
       await accommodationsApi.deleteField(fieldId);
       setFields((prev) => prev.filter((f) => f.id !== fieldId));
@@ -317,7 +323,7 @@ export default function AccommodationTypeDetailPage() {
             <Tag className="h-4 w-4 text-klyp-gray" />
             <span className="text-klyp-gray">
               <span className="font-semibold text-klyp-navy">{fields.length}</span>{" "}
-              campos personalizados
+              características sin coste
             </span>
           </div>
           <div className="flex items-center gap-2 text-sm">
@@ -346,13 +352,12 @@ export default function AccommodationTypeDetailPage() {
             Unidades ({accommodationType.units.length})
           </TabsTrigger>
           <TabsTrigger value="fields">
-            Campos ({fields.length})
+            Características ({fields.length})
           </TabsTrigger>
           <TabsTrigger value="extras">
-            Extras ({extras.length})
+            Extras de Contratación ({extras.length})
           </TabsTrigger>
           <TabsTrigger value="pricing">
-            <DollarSign className="mr-1 h-3.5 w-3.5" />
             Precios
           </TabsTrigger>
           <TabsTrigger value="photos">
@@ -463,7 +468,7 @@ export default function AccommodationTypeDetailPage() {
           </div>
         </TabsContent>
 
-        {/* Tab: Campos personalizados */}
+        {/* Tab: Características sin Coste */}
         <TabsContent value="fields">
           <div className="space-y-4">
             {canManage && (
@@ -474,7 +479,7 @@ export default function AccommodationTypeDetailPage() {
                   className="min-h-[44px]"
                 >
                   <Plus className="mr-2 h-4 w-4" />
-                  Nuevo Campo
+                  Nueva Característica
                 </Button>
               </div>
             )}
@@ -482,9 +487,9 @@ export default function AccommodationTypeDetailPage() {
             {fields.length === 0 ? (
               <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-klyp-pale bg-white py-12 text-center">
                 <Tag className="h-8 w-8 text-klyp-pale" />
-                <p className="mt-3 text-sm font-medium text-klyp-navy">Sin campos personalizados</p>
+                <p className="mt-3 text-sm font-medium text-klyp-navy">Sin características</p>
                 <p className="text-xs text-klyp-gray mt-1">
-                  Define campos adicionales para las unidades de este tipo.
+                  Define características sin coste para las unidades de este tipo.
                 </p>
               </div>
             ) : (
@@ -535,7 +540,7 @@ export default function AccommodationTypeDetailPage() {
                               size="icon"
                               className="h-8 w-8 text-klyp-gray hover:text-red-600"
                               onClick={() => void handleDeleteField(field.id)}
-                              aria-label={`Eliminar campo ${field.field_label}`}
+                              aria-label={`Eliminar característica ${field.field_label}`}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -550,7 +555,7 @@ export default function AccommodationTypeDetailPage() {
           </div>
         </TabsContent>
 
-        {/* Tab: Extras */}
+        {/* Tab: Extras de Contratación */}
         <TabsContent value="extras">
           <div className="space-y-4">
             {canManage && (
@@ -561,7 +566,7 @@ export default function AccommodationTypeDetailPage() {
                   className="min-h-[44px]"
                 >
                   <Plus className="mr-2 h-4 w-4" />
-                  Nuevo Extra
+                  Nuevo Extra de Contratación
                 </Button>
               </div>
             )}
@@ -604,12 +609,6 @@ export default function AccommodationTypeDetailPage() {
                         <TableCell>
                           <span className="text-xs text-klyp-gray">
                             {MULTIPLIER_TYPE_LABELS[extra.multiplier_type]}
-                            {extra.multiplier_type === "per_custom" &&
-                              extra.multiplier_label && (
-                                <span className="ml-1 text-klyp-navy">
-                                  ({extra.multiplier_label})
-                                </span>
-                              )}
                           </span>
                         </TableCell>
                         <TableCell className="text-klyp-navy text-sm">
@@ -629,6 +628,15 @@ export default function AccommodationTypeDetailPage() {
                         {canManage && (
                           <TableCell>
                             <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-klyp-gray hover:text-klyp-accent"
+                                onClick={() => setExtraToEdit(extra)}
+                                aria-label={`Editar ${extra.name}`}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -756,6 +764,14 @@ export default function AccommodationTypeDetailPage() {
           onOpenChange={(open) => { if (!open) setUnitToEdit(null); }}
           unit={unitToEdit}
           onSuccess={handleUnitUpdated}
+        />
+      )}
+      {extraToEdit && (
+        <EditExtraDialog
+          open={!!extraToEdit}
+          onOpenChange={(open) => { if (!open) setExtraToEdit(null); }}
+          extra={extraToEdit}
+          onSuccess={handleExtraUpdated}
         />
       )}
       <CreateUnitDialog

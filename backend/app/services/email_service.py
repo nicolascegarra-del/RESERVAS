@@ -249,13 +249,21 @@ def _send_email(
     msg["To"] = to_email
     msg.attach(MIMEText(html_body, "html", "utf-8"))
 
+    use_ssl = smtp_port == 465
     try:
-        with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
-            server.ehlo()
-            server.starttls()
-            if smtp_password:
-                server.login(smtp_user, smtp_password)
-            server.sendmail(smtp_from, to_email, msg.as_string())
+        if use_ssl:
+            with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=15) as server:
+                server.ehlo()
+                if smtp_password:
+                    server.login(smtp_user, smtp_password)
+                server.sendmail(smtp_from, to_email, msg.as_string())
+        else:
+            with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as server:
+                server.ehlo()
+                server.starttls()
+                if smtp_password:
+                    server.login(smtp_user, smtp_password)
+                server.sendmail(smtp_from, to_email, msg.as_string())
         logger.info("Email enviado a %s (tenant: %s)", to_email, tenant.slug)
         return "sent", smtp_source, None
     except Exception as exc:
