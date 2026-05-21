@@ -11,9 +11,7 @@ Revises: 018_user_preferences
 Create Date: 2026-05-20
 """
 
-import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects import postgresql
 
 revision = "019_billing_manual_creditnote"
 down_revision = "018_user_preferences"
@@ -23,49 +21,60 @@ depends_on = None
 
 def upgrade() -> None:
     # 1. reservation_id → nullable
-    op.alter_column("invoices", "reservation_id", nullable=True, existing_nullable=False)
-
-    # 2. Eliminar UNIQUE constraint sobre reservation_id
-    op.drop_constraint("uq_invoice_reservation", "invoices", type_="unique")
-
-    # 3. Índice parcial — sigue garantizando 1 factura por reserva cuando reservation_id IS NOT NULL
+    # DROP NOT NULL es no-op en PostgreSQL si la columna ya es nullable (idempotente)
     op.execute(
-        "CREATE UNIQUE INDEX uix_invoice_reservation_nonnull "
-        "ON invoices (reservation_id) "
-        "WHERE reservation_id IS NOT NULL AND is_credit_note = FALSE"
+        "ALTER TABLE invoices ALTER COLUMN reservation_id DROP NOT NULL"
     )
 
+    # 2. Eliminar UNIQUE constraint sobre reservation_id (puede no existir si
+    # create_all() creó la tabla con el modelo actual que ya no tiene esa constraint)
+    op.execute(
+        "ALTER TABLE invoices DROP CONSTRAINT IF EXISTS uq_invoice_reservation"
+    )
+
+    # 3. Índice parcial — garantiza 1 factura por reserva cuando hay reservation_id
+    op.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS uix_invoice_reservation_nonnull
+        ON invoices (reservation_id)
+        WHERE reservation_id IS NOT NULL AND is_credit_note = FALSE
+    """)
+
     # 4. is_credit_note
-    op.add_column(
-        "invoices",
-        sa.Column("is_credit_note", sa.Boolean(), nullable=False, server_default="false"),
+    op.execute(
+        "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS is_credit_note BOOLEAN NOT NULL DEFAULT false"
     )
 
     # 5. credit_note_for_id
-    op.add_column(
-        "invoices",
-        sa.Column(
-            "credit_note_for_id",
-            postgresql.UUID(as_uuid=True),
-            nullable=True,
-        ),
+    op.execute(
+        "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS credit_note_for_id UUID"
     )
-    op.create_foreign_key(
-        "fk_invoice_credit_note_for",
-        "invoices",
-        "invoices",
-        ["credit_note_for_id"],
-        ["id"],
-        ondelete="SET NULL",
+
+    # 6. FK condicional para idempotencia
+    op.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.table_constraints
+                WHERE constraint_name = 'fk_invoice_credit_note_for'
+                  AND table_name = 'invoices'
+            ) THEN
+                ALTER TABLE invoices
+                    ADD CONSTRAINT fk_invoice_credit_note_for
+                    FOREIGN KEY (credit_note_for_id) REFERENCES invoices(id) ON DELETE SET NULL;
+            END IF;
+        END $$
+    """)
+
+    # 7. Índice en credit_note_for_id
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_invoices_credit_note_for_id ON invoices (credit_note_for_id)"
     )
-    op.create_index("ix_invoices_credit_note_for_id", "invoices", ["credit_note_for_id"])
 
 
 def downgrade() -> None:
-    op.drop_index("ix_invoices_credit_note_for_id", table_name="invoices")
-    op.drop_constraint("fk_invoice_credit_note_for", "invoices", type_="foreignkey")
-    op.drop_column("invoices", "credit_note_for_id")
-    op.drop_column("invoices", "is_credit_note")
+    op.execute("DROP INDEX IF EXISTS ix_invoices_credit_note_for_id")
+    op.execute("ALTER TABLE invoices DROP CONSTRAINT IF EXISTS fk_invoice_credit_note_for")
+    op.execute("ALTER TABLE invoices DROP COLUMN IF EXISTS credit_note_for_id")
+    op.execute("ALTER TABLE invoices DROP COLUMN IF EXISTS is_credit_note")
     op.execute("DROP INDEX IF EXISTS uix_invoice_reservation_nonnull")
-    op.create_unique_constraint("uq_invoice_reservation", "invoices", ["reservation_id"])
-    op.alter_column("invoices", "reservation_id", nullable=False, existing_nullable=True)
+    op.execute("ALTER TABLE invoices ALTER COLUMN reservation_id SET NOT NULL")
