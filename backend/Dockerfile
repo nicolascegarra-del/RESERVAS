@@ -27,6 +27,7 @@ COPY app/ ./app/
 COPY alembic/ ./alembic/
 COPY alembic.ini .
 COPY entrypoint.sh .
+COPY create_superadmin.py .
 RUN chmod +x entrypoint.sh
 
 # Pre-crear directorios de media con permisos para appuser

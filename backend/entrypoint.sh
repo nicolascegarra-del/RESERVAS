@@ -12,5 +12,8 @@ python3 -c "import asyncio; import app.models; from app.core.database import ini
 echo "Ejecutando migraciones Alembic (todas idempotentes)..."
 alembic upgrade head
 
+echo "Creando superadmin inicial si no existe..."
+python3 create_superadmin.py || true
+
 echo "Base de datos lista. Arrancando servidor..."
 exec uvicorn app.main:app --host 0.0.0.0 --port 8000
