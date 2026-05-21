@@ -29,6 +29,9 @@ def upgrade() -> None:
                 UPDATE extras SET multiplier_type = 'fixed'
                 WHERE multiplier_type = 'per_custom';
 
+                -- Drop server default before changing the column type
+                ALTER TABLE extras ALTER COLUMN multiplier_type DROP DEFAULT;
+
                 -- Create new enum with desired values
                 CREATE TYPE multipliertype_new AS ENUM
                     ('fixed', 'per_person', 'per_person_night', 'per_night');
@@ -41,6 +44,9 @@ def upgrade() -> None:
                 -- Drop old type and rename new
                 DROP TYPE multipliertype;
                 ALTER TYPE multipliertype_new RENAME TO multipliertype;
+
+                -- Restore server default
+                ALTER TABLE extras ALTER COLUMN multiplier_type SET DEFAULT 'fixed';
             ELSE
                 -- Add missing values if enum already partially updated
                 IF NOT EXISTS (
