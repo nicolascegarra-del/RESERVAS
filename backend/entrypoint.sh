@@ -6,8 +6,8 @@ if [ "$#" -gt 0 ]; then
     exec "$@"
 fi
 
-echo "Inicializando esquema de base de datos con create_all()..."
-python3 -c "import asyncio; from app.core.database import init_db; asyncio.run(init_db())"
+echo "Inicializando esquema de base de datos..."
+python3 -c "import asyncio; import app.models; from app.core.database import init_db; asyncio.run(init_db())"
 
 echo "Ejecutando migraciones Alembic (todas idempotentes)..."
 alembic upgrade head
