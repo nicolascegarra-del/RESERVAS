@@ -3,6 +3,7 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
+from sqlalchemy import Column, Text
 from sqlmodel import Field, SQLModel
 
 
@@ -19,5 +20,5 @@ class MailLog(SQLModel, table=True):
     status: str = Field(max_length=20)        # "sent", "failed", "no_smtp"
     smtp_source: str = Field(max_length=20)   # "tenant", "system", "none"
     error_message: str | None = Field(default=None, max_length=500)
-    body_html: str | None = Field(default=None, sa_column_kwargs={"nullable": True})
+    body_html: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
     sent_at: datetime = Field(default_factory=datetime.utcnow, index=True)
