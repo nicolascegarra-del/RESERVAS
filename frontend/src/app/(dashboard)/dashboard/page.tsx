@@ -12,6 +12,7 @@ import {
   X,
   Check,
 } from "lucide-react";
+import { OccupancyCalendar } from "@/components/reservations/OccupancyCalendar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -35,16 +36,18 @@ const ALL_WIDGET_KEYS = [
   "stat_guests",
   "stat_occupancy",
   "docs_alerts",
+  "occupancy_calendar",
 ] as const;
 
 type WidgetKey = (typeof ALL_WIDGET_KEYS)[number];
 
 const WIDGET_LABELS: Record<WidgetKey, string> = {
-  stat_units:        "Alojamientos activos",
-  stat_reservations: "Reservas activas",
-  stat_guests:       "Huéspedes en casa",
-  stat_occupancy:    "Ocupación hoy",
-  docs_alerts:       "Alertas de documentación",
+  stat_units:          "Alojamientos activos",
+  stat_reservations:   "Reservas activas",
+  stat_guests:         "Huéspedes en casa",
+  stat_occupancy:      "Ocupación hoy",
+  docs_alerts:         "Alertas de documentación",
+  occupancy_calendar:  "Calendario de ocupación",
 };
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -294,6 +297,13 @@ export default function DashboardPage() {
               </Card>
             )
           )}
+        </div>
+      )}
+
+      {/* Calendario de ocupación */}
+      {show("occupancy_calendar") && (
+        <div className="rounded-xl border border-klyp-pale bg-white p-4 md:p-6">
+          <OccupancyCalendar />
         </div>
       )}
 
