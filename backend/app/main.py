@@ -3,8 +3,7 @@ Punto de entrada de la aplicación FastAPI.
 Configura CORS, registra routers y eventos de ciclo de vida.
 """
 
-from contextlib import asynccontextmanager
-from typing import Any, AsyncGenerator
+from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -37,14 +36,6 @@ from app.api.v1.webhooks import router as webhooks_router
 from app.api.v1.redsys import router as redsys_router
 from app.api.v1.preferences import router as preferences_router
 from app.core.config import settings
-from app.core.database import init_db
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Inicializa la BD al arrancar y limpia recursos al parar."""
-    await init_db()
-    yield
 
 
 _is_dev = settings.app_env == "development"
@@ -55,7 +46,6 @@ app = FastAPI(
     version="4.0.0",
     docs_url="/docs" if _is_dev else None,
     redoc_url="/redoc" if _is_dev else None,
-    lifespan=lifespan,
 )
 
 app.state.limiter = limiter
