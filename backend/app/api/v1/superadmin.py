@@ -238,7 +238,6 @@ class TestEmailPayload(BaseModel):
 
 def _test_smtp_connection(host: str, port: int, user: str, password: str | None) -> None:
     use_ssl = port == 465
-    # SSL context permisivo para prueba de conectividad (acepta self-signed certs)
     ssl_context = ssl.create_default_context()
     ssl_context.check_hostname = False
     ssl_context.verify_mode = ssl.CERT_NONE
@@ -248,6 +247,7 @@ def _test_smtp_connection(host: str, port: int, user: str, password: str | None)
                 server.ehlo()
                 if password:
                     server.login(user, password)
+                server.noop()
         else:
             with smtplib.SMTP(host, port, timeout=15) as server:
                 server.ehlo()
@@ -255,6 +255,7 @@ def _test_smtp_connection(host: str, port: int, user: str, password: str | None)
                 server.ehlo()
                 if password:
                     server.login(user, password)
+                server.noop()
     except Exception as exc:
         logger.error("SMTP test failed (%s:%d): %s", host, port, exc)
         raise

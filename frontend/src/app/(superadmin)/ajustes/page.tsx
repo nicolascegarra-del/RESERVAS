@@ -1,14 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Mail, Save, CheckCircle2 } from "lucide-react";
+import {
+  Loader2, Mail, Save, CheckCircle2, XCircle, Server,
+  KeyRound, SendHorizonal, Wifi, AlertCircle,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import { systemApi, type SystemSMTP } from "@/lib/superadminApi";
 
-// ─── Página ───────────────────────────────────────────────────────────────────
+// ─── Tipos ────────────────────────────────────────────────────────────────────
 
 type SMTPForm = {
   smtp_host: string;
@@ -17,6 +21,28 @@ type SMTPForm = {
   smtp_password: string;
   smtp_from: string;
 };
+
+// ─── Subcomponentes ───────────────────────────────────────────────────────────
+
+function SectionHeader({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
+  return (
+    <div className="flex items-start gap-3 px-6 py-4 border-b border-gray-100">
+      <div className="mt-0.5 h-8 w-8 rounded-md bg-klyp-pale flex items-center justify-center shrink-0">
+        {icon}
+      </div>
+      <div>
+        <p className="text-sm font-semibold text-klyp-navy">{title}</p>
+        <p className="text-xs text-klyp-gray">{description}</p>
+      </div>
+    </div>
+  );
+}
+
+function FieldHint({ children }: { children: React.ReactNode }) {
+  return <p className="text-xs text-klyp-gray mt-1">{children}</p>;
+}
+
+// ─── Página ───────────────────────────────────────────────────────────────────
 
 export default function ConfiguracionPage() {
   const [loading, setLoading] = useState(true);
@@ -113,145 +139,243 @@ export default function ConfiguracionPage() {
       setForm((p) => ({ ...p, [key]: key === "smtp_port" ? Number(e.target.value) : e.target.value })),
   });
 
+  const isConfigured = Boolean(form.smtp_host && form.smtp_user && form.smtp_from);
+
+  if (loading) {
+    return (
+      <div className="max-w-2xl space-y-6">
+        <div className="space-y-2">
+          <Skeleton className="h-7 w-64 rounded-md" />
+          <Skeleton className="h-4 w-96 rounded-md" />
+        </div>
+        <div className="rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100">
+            <Skeleton className="h-8 w-48 rounded-md" />
+          </div>
+          <div className="px-6 py-5 space-y-4">
+            {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-10 w-full rounded-md" />)}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-2xl space-y-6">
+      {/* Cabecera de página */}
       <div>
         <h1 className="text-2xl font-bold text-klyp-navy">Configuración del sistema</h1>
         <p className="text-sm text-klyp-gray mt-0.5">
-          SMTP global de fallback — se usa cuando una empresa no tiene su propio SMTP configurado.
+          SMTP global de fallback — se usa cuando una empresa no tiene SMTP propio configurado.
         </p>
       </div>
 
-      {loading ? (
-        <div className="space-y-3">{[...Array(6)].map((_, i) => <Skeleton key={i} className="h-10 w-full rounded-md" />)}</div>
-      ) : (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          {/* Cabecera */}
-          <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
-            <div className="h-9 w-9 rounded-lg bg-klyp-pale flex items-center justify-center">
-              <Mail className="h-5 w-5 text-klyp-accent" />
+      {/* Estado general */}
+      <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm">
+        <div className={`h-2.5 w-2.5 rounded-full shrink-0 ${verifiedAt ? "bg-green-500" : "bg-amber-400"}`} />
+        <div className="flex-1 min-w-0">
+          {verifiedAt ? (
+            <p className="text-sm text-klyp-navy font-medium">
+              SMTP verificado el{" "}
+              {new Date(verifiedAt).toLocaleDateString("es-ES", { day: "2-digit", month: "long", year: "numeric" })}
+            </p>
+          ) : (
+            <p className="text-sm text-klyp-navy font-medium">SMTP no verificado</p>
+          )}
+          <p className="text-xs text-klyp-gray">
+            {verifiedAt
+              ? "El servidor de correo global está configurado y funcionando."
+              : "Completa la configuración y pulsa «Probar Conexión» para verificar."}
+          </p>
+        </div>
+        {verifiedAt && (
+          <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100 shrink-0">
+            <CheckCircle2 className="h-3 w-3 mr-1" />
+            Activo
+          </Badge>
+        )}
+      </div>
+
+      {/* Tarjeta principal */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+
+        {/* ── Sección: Conexión ── */}
+        <SectionHeader
+          icon={<Server className="h-4 w-4 text-klyp-accent" />}
+          title="Servidor de correo"
+          description="Host y puerto del servidor SMTP"
+        />
+        <div className="px-6 py-5 space-y-4 border-b border-gray-100">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>Host SMTP</Label>
+              <Input {...f("smtp_host")} placeholder="smtp.gmail.com" />
+              <FieldHint>Dirección del servidor de correo saliente.</FieldHint>
             </div>
-            <div>
-              <p className="text-sm font-semibold text-klyp-navy">SMTP global</p>
-              <p className="text-xs text-klyp-gray">Servidor de correo de fallback cuando una empresa no tiene SMTP propio</p>
+            <div className="space-y-1.5">
+              <Label>Puerto</Label>
+              <Input type="number" {...f("smtp_port")} />
+              <FieldHint>587 (TLS) · 465 (SSL) · 25</FieldHint>
             </div>
           </div>
+        </div>
 
-          {/* Formulario */}
-          <div className="px-6 py-5 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label>Servidor SMTP (Host)</Label>
-                <Input {...f("smtp_host")} placeholder="smtp.gmail.com" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Puerto</Label>
-                <Input type="number" {...f("smtp_port")} />
-              </div>
-              <div className="space-y-1.5 sm:col-span-3">
-                <Label>Usuario</Label>
-                <Input {...f("smtp_user")} placeholder="noreply@tudominio.com" />
-              </div>
-              <div className="space-y-1.5 sm:col-span-3">
-                <Label>Contraseña</Label>
+        {/* ── Sección: Autenticación ── */}
+        <SectionHeader
+          icon={<KeyRound className="h-4 w-4 text-klyp-accent" />}
+          title="Autenticación"
+          description="Credenciales de acceso al servidor"
+        />
+        <div className="px-6 py-5 space-y-4 border-b border-gray-100">
+          <div className="space-y-1.5">
+            <Label>Usuario</Label>
+            <Input {...f("smtp_user")} placeholder="noreply@tudominio.com" />
+            <FieldHint>Normalmente coincide con la dirección de correo.</FieldHint>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Contraseña</Label>
+            <Input
+              type="password"
+              {...f("smtp_password")}
+              placeholder="Déjalo vacío para mantener la contraseña guardada"
+              className="font-mono"
+            />
+            <FieldHint>Solo es necesario rellenar este campo si quieres cambiar la contraseña.</FieldHint>
+          </div>
+        </div>
+
+        {/* ── Sección: Remitente ── */}
+        <SectionHeader
+          icon={<Mail className="h-4 w-4 text-klyp-accent" />}
+          title="Dirección remitente"
+          description="Dirección que aparecerá en el campo «De» de los emails"
+        />
+        <div className="px-6 py-5 border-b border-gray-100">
+          <div className="space-y-1.5">
+            <Label>Email remitente (From)</Label>
+            <Input type="email" {...f("smtp_from")} placeholder="noreply@tudominio.com" />
+            <FieldHint>Se mostrará como remitente en todos los emails enviados por el sistema.</FieldHint>
+          </div>
+        </div>
+
+        {/* ── Sección: Verificar ── */}
+        <SectionHeader
+          icon={<Wifi className="h-4 w-4 text-klyp-accent" />}
+          title="Verificar configuración"
+          description="Prueba la conexión y envía un email de prueba"
+        />
+        <div className="px-6 py-5 space-y-4 border-b border-gray-100">
+          {/* Resultado del test de conexión */}
+          {testResult && (
+            <div className={`flex items-start gap-2.5 rounded-lg px-4 py-3 text-sm ${
+              testResult.ok
+                ? "bg-green-50 border border-green-200 text-green-700"
+                : "bg-red-50 border border-red-200 text-red-700"
+            }`}>
+              {testResult.ok
+                ? <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
+                : <XCircle className="h-4 w-4 mt-0.5 shrink-0" />}
+              <span>{testResult.message}</span>
+            </div>
+          )}
+
+          {/* Botón probar conexión */}
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={testing || !isConfigured}
+              onClick={() => void handleTest()}
+              className="shrink-0"
+            >
+              {testing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Wifi className="h-4 w-4 mr-2" />}
+              {testing ? "Probando..." : "Probar Conexión"}
+            </Button>
+            {!isConfigured && (
+              <p className="text-xs text-klyp-gray">Completa el host, usuario y remitente para probar.</p>
+            )}
+          </div>
+
+          {/* Separador */}
+          <div className="border-t border-gray-100 pt-4">
+            <p className="text-xs font-medium text-klyp-navy mb-3">Enviar email de prueba a una dirección específica</p>
+            <div className="flex gap-2 items-start">
+              <div className="flex-1 space-y-1.5">
                 <Input
-                  type="password"
-                  {...f("smtp_password")}
-                  placeholder="••••••••••••"
+                  type="email"
+                  placeholder="destinatario@ejemplo.com"
+                  value={testEmailAddr}
+                  onChange={(e) => setTestEmailAddr(e.target.value)}
                 />
               </div>
-              <div className="space-y-1.5 sm:col-span-3">
-                <Label>Email remitente (From)</Label>
-                <Input type="email" {...f("smtp_from")} placeholder="noreply@tudominio.com" />
-              </div>
-            </div>
-
-            {/* Estado de verificación + botón */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-1">
-              <div className="flex-1">
-                {testResult ? (
-                  <p className={`text-sm flex items-center gap-1.5 ${testResult.ok ? "text-green-600" : "text-red-600"}`}>
-                    <span className={`inline-block h-2 w-2 rounded-full ${testResult.ok ? "bg-green-500" : "bg-red-500"}`} />
-                    {testResult.message}
-                  </p>
-                ) : verifiedAt ? (
-                  <p className="text-sm text-green-600 flex items-center gap-1.5">
-                    <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
-                    Configuración probada y funcionando — {new Date(verifiedAt).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" })}
-                  </p>
-                ) : (
-                  <p className="text-sm text-klyp-gray">Guarda los datos y pulsa &quot;Probar Conexión&quot;.</p>
-                )}
-              </div>
               <Button
                 variant="outline"
                 size="sm"
-                disabled={testing || !form.smtp_host}
-                onClick={() => void handleTest()}
-                className="shrink-0"
-              >
-                {testing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                {testing ? "Probando..." : "Probar Conexión"}
-              </Button>
-            </div>
-
-            {/* Enviar email de prueba */}
-            <div className="flex gap-2 items-center">
-              <Input
-                type="email"
-                placeholder="destinatario@ejemplo.com"
-                value={testEmailAddr}
-                onChange={(e) => setTestEmailAddr(e.target.value)}
-                className="flex-1"
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={sendingTestEmail || !testEmailAddr || !form.smtp_host}
+                disabled={sendingTestEmail || !testEmailAddr || !isConfigured}
                 onClick={() => void handleSendTestEmail()}
                 className="shrink-0"
               >
-                {sendingTestEmail ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                {sendingTestEmail ? "Enviando..." : "Enviar email de prueba"}
+                {sendingTestEmail
+                  ? <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  : <SendHorizonal className="h-4 w-4 mr-2" />}
+                {sendingTestEmail ? "Enviando..." : "Enviar prueba"}
               </Button>
             </div>
             {sendTestEmailResult && (
-              <p className={`text-sm flex items-center gap-1.5 ${sendTestEmailResult.ok ? "text-green-600" : "text-red-600"}`}>
-                <span className={`inline-block h-2 w-2 rounded-full ${sendTestEmailResult.ok ? "bg-green-500" : "bg-red-500"}`} />
-                {sendTestEmailResult.message}
-              </p>
+              <div className={`mt-3 flex items-start gap-2.5 rounded-lg px-4 py-3 text-sm ${
+                sendTestEmailResult.ok
+                  ? "bg-green-50 border border-green-200 text-green-700"
+                  : "bg-red-50 border border-red-200 text-red-700"
+              }`}>
+                {sendTestEmailResult.ok
+                  ? <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
+                  : <XCircle className="h-4 w-4 mt-0.5 shrink-0" />}
+                <span>{sendTestEmailResult.message}</span>
+              </div>
             )}
+          </div>
+        </div>
 
-            {/* Info sobre la prioridad */}
-            <div className="rounded-lg bg-klyp-pale border border-klyp-accent/20 px-4 py-3 text-xs text-klyp-navy space-y-1">
-              <p className="font-semibold">Lógica de prioridad SMTP:</p>
+        {/* ── Sección: Info prioridad ── */}
+        <div className="px-6 py-4 bg-klyp-pale/40 border-b border-gray-100">
+          <div className="flex items-start gap-2.5 text-xs text-klyp-navy">
+            <AlertCircle className="h-3.5 w-3.5 mt-0.5 text-klyp-accent shrink-0" />
+            <div className="space-y-1">
+              <p className="font-semibold">Lógica de prioridad SMTP</p>
               <ol className="list-decimal list-inside space-y-0.5 text-klyp-gray">
                 <li><strong className="text-klyp-navy">SMTP de la empresa</strong> — si la empresa tiene SMTP propio activo</li>
                 <li><strong className="text-klyp-navy">SMTP global (este)</strong> — si la empresa no tiene SMTP configurado</li>
               </ol>
             </div>
+          </div>
+        </div>
 
-            {error && <p className="text-sm text-red-600">{error}</p>}
+        {/* ── Footer: Guardar ── */}
+        <div className="px-6 py-4 flex items-center justify-between gap-4">
+          <div>
+            {error && (
+              <p className="text-sm text-red-600 flex items-center gap-1.5">
+                <XCircle className="h-4 w-4 shrink-0" />
+                {error}
+              </p>
+            )}
             {saved && (
               <p className="text-sm text-green-600 flex items-center gap-1.5">
-                <CheckCircle2 className="h-4 w-4" />
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
                 Configuración guardada correctamente.
               </p>
             )}
           </div>
-
-          <div className="px-6 py-4 border-t border-gray-100 flex justify-end">
-            <Button
-              onClick={() => void handleSave()}
-              disabled={saving}
-              className="bg-klyp-accent hover:bg-klyp-accent/90 text-white"
-            >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-              {saving ? "Guardando..." : "Guardar Configuración"}
-            </Button>
-          </div>
+          <Button
+            onClick={() => void handleSave()}
+            disabled={saving}
+            className="bg-klyp-navy hover:bg-klyp-navy-light text-white shrink-0"
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+            {saving ? "Guardando..." : "Guardar configuración"}
+          </Button>
         </div>
-      )}
+      </div>
     </div>
   );
 }
