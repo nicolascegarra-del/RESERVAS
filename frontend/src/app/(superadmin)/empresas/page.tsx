@@ -6,7 +6,7 @@ import {
   Plus, Pencil, Trash2, Users, Building2, Loader2,
   PauseCircle, PlayCircle, ChevronUp, ChevronDown, SlidersHorizontal,
   Upload, AlertTriangle, CreditCard, Mail, Info, LogIn, Globe,
-  GripVertical, Palette, Save,
+  GripVertical, Palette, Save, Eye, EyeOff, CheckCircle2, XCircle, Power,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/button";
@@ -20,12 +20,246 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { tenantsApi, type TenantSummary, type TenantCreatePayload } from "@/lib/superadminApi";
+import {
+  tenantsApi, paymentGatewaysApi,
+  type TenantSummary, type TenantCreatePayload,
+  type PaymentGateway, type PaymentGatewayCreatePayload,
+} from "@/lib/superadminApi";
+import { extractApiErrorMessage } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TenantUsersDialog } from "./TenantUsersDialog";
 
 const API_URL = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:8000";
 const HEX_RE = /^#[0-9A-Fa-f]{6}$/;
+
+// ─── Componentes de pasarelas de pago ────────────────────────────────────────
+
+function PasswordFieldInput({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="flex gap-2">
+      <input
+        type={show ? "text" : "password"}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      />
+      <button type="button" onClick={() => setShow(!show)} className="shrink-0 h-10 w-10 inline-flex items-center justify-center rounded-md border border-input bg-background text-klyp-gray hover:text-klyp-navy">
+        {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </button>
+    </div>
+  );
+}
+
+interface GatewayFormData {
+  type: "stripe" | "redsys";
+  name: string;
+  stripe_secret_key: string;
+  stripe_webhook_secret: string;
+  stripe_currency: string;
+  redsys_merchant_code: string;
+  redsys_terminal: string;
+  redsys_secret_key: string;
+  redsys_currency: string;
+  redsys_environment: string;
+  bizum_enabled: boolean;
+}
+function emptyGatewayForm(type: "stripe" | "redsys" = "stripe"): GatewayFormData {
+  return { type, name: "", stripe_secret_key: "", stripe_webhook_secret: "", stripe_currency: "eur", redsys_merchant_code: "", redsys_terminal: "", redsys_secret_key: "", redsys_currency: "978", redsys_environment: "sandbox", bizum_enabled: false };
+}
+
+function GatewayDialog({ tenantId, editing, onClose, onSaved }: { tenantId: string; editing: PaymentGateway | null; onClose: () => void; onSaved: (gw: PaymentGateway) => void }) {
+  const [form, setForm] = useState<GatewayFormData>(editing ? { type: editing.type, name: editing.name, stripe_secret_key: "", stripe_webhook_secret: "", stripe_currency: editing.stripe_currency, redsys_merchant_code: editing.redsys_merchant_code ?? "", redsys_terminal: editing.redsys_terminal ?? "", redsys_secret_key: "", redsys_currency: editing.redsys_currency, redsys_environment: editing.redsys_environment, bizum_enabled: editing.bizum_enabled } : emptyGatewayForm());
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const set = (k: keyof GatewayFormData, v: string) => setForm((p) => ({ ...p, [k]: v }));
+
+  const handleSubmit = async () => {
+    if (!form.name.trim()) { setErr("El nombre es obligatorio."); return; }
+    setSaving(true); setErr(null);
+    try {
+      if (editing) {
+        const payload: Record<string, unknown> = { name: form.name };
+        if (editing.type === "stripe") {
+          if (form.stripe_secret_key) payload["stripe_secret_key"] = form.stripe_secret_key;
+          if (form.stripe_webhook_secret) payload["stripe_webhook_secret"] = form.stripe_webhook_secret;
+          payload["stripe_currency"] = form.stripe_currency;
+        } else {
+          payload["redsys_merchant_code"] = form.redsys_merchant_code || null;
+          payload["redsys_terminal"] = form.redsys_terminal || null;
+          if (form.redsys_secret_key) payload["redsys_secret_key"] = form.redsys_secret_key;
+          payload["redsys_currency"] = form.redsys_currency;
+          payload["redsys_environment"] = form.redsys_environment;
+          payload["bizum_enabled"] = form.bizum_enabled;
+        }
+        onSaved((await paymentGatewaysApi.update(tenantId, editing.id, payload)).data);
+      } else {
+        const payload: PaymentGatewayCreatePayload = { type: form.type, name: form.name };
+        if (form.type === "stripe") {
+          if (form.stripe_secret_key) payload["stripe_secret_key"] = form.stripe_secret_key;
+          if (form.stripe_webhook_secret) payload["stripe_webhook_secret"] = form.stripe_webhook_secret;
+          payload["stripe_currency"] = form.stripe_currency;
+        } else {
+          if (form.redsys_merchant_code) payload["redsys_merchant_code"] = form.redsys_merchant_code;
+          if (form.redsys_terminal) payload["redsys_terminal"] = form.redsys_terminal;
+          if (form.redsys_secret_key) payload["redsys_secret_key"] = form.redsys_secret_key;
+          payload["redsys_currency"] = form.redsys_currency;
+          payload["redsys_environment"] = form.redsys_environment;
+          payload["bizum_enabled"] = form.bizum_enabled;
+        }
+        onSaved((await paymentGatewaysApi.create(tenantId, payload)).data);
+      }
+      onClose();
+    } catch (e) { setErr(extractApiErrorMessage(e)); } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-5 border-b">
+          <h2 className="text-base font-semibold text-klyp-navy">{editing ? "Editar pasarela" : "Añadir pasarela de pago"}</h2>
+          <button onClick={onClose} className="text-klyp-gray hover:text-klyp-navy text-xl leading-none">×</button>
+        </div>
+        <div className="p-5 space-y-4">
+          {!editing && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Tipo de pasarela</label>
+              <div className="flex gap-3">
+                {(["stripe", "redsys"] as const).map((t) => (
+                  <button key={t} type="button" onClick={() => set("type", t)} className={`flex-1 py-2 rounded-lg border-2 text-sm font-medium transition-colors ${form.type === t ? "border-klyp-accent bg-klyp-accent/5 text-klyp-accent" : "border-gray-200 text-klyp-gray hover:border-klyp-accent/50"}`}>
+                    {t === "stripe" ? "Stripe" : "Redsys TPV Virtual"}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Nombre identificativo</label>
+            <input value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Ej: Redsys Principal" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+          </div>
+          {form.type === "stripe" && (
+            <>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Secret Key {editing?.stripe_secret_key_set && <span className="text-klyp-gray font-normal text-xs">(configurada — vacío para mantener)</span>}</label>
+                <PasswordFieldInput value={form.stripe_secret_key} onChange={(v) => set("stripe_secret_key", v)} placeholder="sk_live_..." />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Webhook Secret {editing?.stripe_webhook_secret_set && <span className="text-klyp-gray font-normal text-xs">(configurado)</span>}</label>
+                <PasswordFieldInput value={form.stripe_webhook_secret} onChange={(v) => set("stripe_webhook_secret", v)} placeholder="whsec_..." />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Moneda</label>
+                <input value={form.stripe_currency} onChange={(e) => set("stripe_currency", e.target.value.toLowerCase())} placeholder="eur" maxLength={3} className="flex h-10 w-24 rounded-md border border-input bg-background px-3 py-2 text-sm font-mono uppercase" />
+              </div>
+            </>
+          )}
+          {form.type === "redsys" && (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Código de comercio / FUC</label>
+                  <input value={form.redsys_merchant_code} onChange={(e) => set("redsys_merchant_code", e.target.value)} placeholder="999008881" maxLength={15} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Terminal</label>
+                  <input value={form.redsys_terminal} onChange={(e) => set("redsys_terminal", e.target.value)} placeholder="001" maxLength={3} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Clave secreta (HMAC-SHA512) {editing?.redsys_secret_key_set && <span className="text-klyp-gray font-normal text-xs">(configurada — vacío para mantener)</span>}</label>
+                <PasswordFieldInput value={form.redsys_secret_key} onChange={(v) => set("redsys_secret_key", v)} placeholder="sq7HjrUOBfKmC576ILgskD5srU870gJ7..." />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Moneda (ISO 4217)</label>
+                  <input value={form.redsys_currency} onChange={(e) => set("redsys_currency", e.target.value)} placeholder="978" maxLength={3} className="flex h-10 w-24 rounded-md border border-input bg-background px-3 py-2 text-sm font-mono" />
+                  <p className="text-xs text-klyp-gray">978 = EUR</p>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Entorno</label>
+                  <select value={form.redsys_environment} onChange={(e) => set("redsys_environment", e.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                    <option value="sandbox">Sandbox (pruebas)</option>
+                    <option value="production">Producción</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                <input type="checkbox" id="gw-bizum" checked={form.bizum_enabled} onChange={(e) => setForm((p) => ({ ...p, bizum_enabled: e.target.checked }))} className="mt-0.5 h-4 w-4 shrink-0" />
+                <div>
+                  <label htmlFor="gw-bizum" className="text-sm font-medium cursor-pointer">Activar Bizum</label>
+                  <p className="text-xs text-klyp-gray mt-0.5">Permite pagar con Bizum además de tarjeta (mismas credenciales Redsys).</p>
+                </div>
+              </div>
+            </>
+          )}
+          {err && <p className="text-sm text-red-600">{err}</p>}
+          <div className="flex gap-3 pt-2">
+            <button onClick={() => void handleSubmit()} disabled={saving} className="flex-1 inline-flex items-center justify-center h-10 px-4 rounded-md bg-klyp-accent text-white text-sm font-medium hover:bg-klyp-accent/90 disabled:opacity-50">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+              {editing ? "Guardar cambios" : "Añadir pasarela"}
+            </button>
+            <button onClick={onClose} className="flex-1 inline-flex items-center justify-center h-10 px-4 rounded-md border border-input bg-background text-sm font-medium hover:bg-gray-50">Cancelar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GatewayBadge({ type }: { type: string }) {
+  if (type === "stripe") return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-violet-100 text-violet-700">Stripe</span>;
+  return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">Redsys</span>;
+}
+
+function GatewayTable({ tenantId, gateways, onEdit, onToggle, onDelete, toggling, deleting }: { tenantId: string; gateways: PaymentGateway[]; onEdit: (gw: PaymentGateway) => void; onToggle: (gw: PaymentGateway) => void; onDelete: (gw: PaymentGateway) => void; toggling: string | null; deleting: string | null }) {
+  void tenantId;
+  if (gateways.length === 0) return <div className="text-center py-8 text-klyp-gray text-sm border border-dashed border-gray-200 rounded-lg">No hay pasarelas configuradas para esta empresa.</div>;
+  return (
+    <div className="overflow-x-auto rounded-lg border border-gray-200">
+      <table className="w-full text-sm">
+        <thead className="bg-gray-50">
+          <tr>
+            <th className="text-left px-3 py-2.5 font-medium text-klyp-navy text-xs">Nombre</th>
+            <th className="text-left px-3 py-2.5 font-medium text-klyp-navy text-xs">Tipo</th>
+            <th className="text-left px-3 py-2.5 font-medium text-klyp-navy text-xs">Estado</th>
+            <th className="text-left px-3 py-2.5 font-medium text-klyp-navy text-xs">Credenciales</th>
+            <th className="text-right px-3 py-2.5 font-medium text-klyp-navy text-xs">Acciones</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {gateways.map((gw) => (
+            <tr key={gw.id} className="hover:bg-gray-50">
+              <td className="px-3 py-2.5 font-medium text-klyp-navy text-xs">{gw.name}</td>
+              <td className="px-3 py-2.5"><GatewayBadge type={gw.type} /></td>
+              <td className="px-3 py-2.5">
+                {gw.is_active
+                  ? <span className="inline-flex items-center gap-1 text-green-600 text-xs font-medium"><CheckCircle2 className="h-3 w-3" />Activa</span>
+                  : <span className="inline-flex items-center gap-1 text-klyp-gray text-xs"><XCircle className="h-3 w-3" />Inactiva</span>}
+              </td>
+              <td className="px-3 py-2.5 text-xs text-klyp-gray">
+                {gw.type === "stripe"
+                  ? <>SK: {gw.stripe_secret_key_set ? <span className="text-green-600">✓</span> : <span className="text-red-500">✗</span>}{" · "}WH: {gw.stripe_webhook_secret_set ? <span className="text-green-600">✓</span> : <span className="text-red-500">✗</span>}</>
+                  : <>FUC: {gw.redsys_merchant_code ?? "—"}{" · "}SK: {gw.redsys_secret_key_set ? <span className="text-green-600">✓</span> : <span className="text-red-500">✗</span>}{gw.bizum_enabled && <span className="ml-1 px-1 py-0.5 rounded bg-emerald-100 text-emerald-700">Bizum</span>}</>}
+              </td>
+              <td className="px-3 py-2.5">
+                <div className="flex items-center justify-end gap-0.5">
+                  <button className="h-7 w-7 inline-flex items-center justify-center rounded text-klyp-gray hover:text-klyp-navy" title="Editar" onClick={() => onEdit(gw)}><Pencil className="h-3.5 w-3.5" /></button>
+                  <button className={`h-7 w-7 inline-flex items-center justify-center rounded ${gw.is_active ? "text-green-600 hover:text-green-700" : "text-klyp-gray hover:text-green-600"}`} title={gw.is_active ? "Desactivar" : "Activar"} onClick={() => onToggle(gw)} disabled={toggling === gw.id}>
+                    {toggling === gw.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Power className="h-3.5 w-3.5" />}
+                  </button>
+                  <button className="h-7 w-7 inline-flex items-center justify-center rounded text-klyp-gray hover:text-red-600" title="Eliminar" onClick={() => onDelete(gw)} disabled={deleting === gw.id}>
+                    {deleting === gw.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 // ─── Formulario compartido ────────────────────────────────────────────────────
 
@@ -43,7 +277,7 @@ const emptyForm = (): TenantFormData => ({
   max_company_admins: 5, max_reception_users: 20,
 });
 
-function TenantFormFields({ form, setForm }: {
+function TenantFormFieldsBasic({ form, setForm }: {
   form: TenantFormData;
   setForm: React.Dispatch<React.SetStateAction<TenantFormData>>;
 }) {
@@ -114,23 +348,13 @@ function TenantFormFields({ form, setForm }: {
           </div>
         </div>
       </div>
-      <div>
-        <p className="text-xs font-semibold text-klyp-gray uppercase tracking-wide mb-3">Límites de usuarios</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label>Máx. Admin Empresa</Label>
-            <Input type="number" min={1} max={100} {...field("max_company_admins")} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Máx. Gestión</Label>
-            <Input type="number" min={1} max={500} {...field("max_reception_users")} />
-          </div>
-        </div>
-      </div>
-      <p className="text-xs text-klyp-gray">Los campos con <span className="text-red-500 font-medium">*</span> son obligatorios. El resto puede completarse después.</p>
+      <p className="text-xs text-klyp-gray">Los campos con <span className="text-red-500 font-medium">*</span> son obligatorios.</p>
     </div>
   );
 }
+
+// Alias mantenido para el EditTenantDialog (que añade la pestaña Límites aparte)
+const TenantFormFields = TenantFormFieldsBasic;
 
 // ─── Dialogo Crear ────────────────────────────────────────────────────────────
 
@@ -179,21 +403,16 @@ function CreateTenantDialog({ open, onOpenChange, onCreated }: {
         newTenant = logoRes.data;
       }
 
-      // Aplicar config Stripe/SMTP si se rellenó algo
-      const hasStripeConfig = config.stripe_secret_key || config.stripe_webhook_secret || config.stripe_enabled;
+      // Aplicar config SMTP si se rellenó algo
       const hasSmtpConfig = config.smtp_host || config.smtp_user || config.smtp_password || config.smtp_enabled;
-      if (hasStripeConfig || hasSmtpConfig) {
+      if (hasSmtpConfig) {
         const configPayload: Record<string, unknown> = {
-          stripe_enabled: config.stripe_enabled,
-          stripe_currency: config.stripe_currency,
           smtp_enabled: config.smtp_enabled,
           smtp_host: config.smtp_host || null,
           smtp_port: config.smtp_port,
           smtp_user: config.smtp_user || null,
           smtp_from: config.smtp_from || null,
         };
-        if (config.stripe_secret_key) configPayload["stripe_secret_key"] = config.stripe_secret_key;
-        if (config.stripe_webhook_secret) configPayload["stripe_webhook_secret"] = config.stripe_webhook_secret;
         if (config.smtp_password) configPayload["smtp_password"] = config.smtp_password;
         await tenantsApi.updateConfig(newTenant.id, configPayload as Parameters<typeof tenantsApi.updateConfig>[1]);
       }
@@ -243,17 +462,13 @@ function CreateTenantDialog({ open, onOpenChange, onCreated }: {
           <Tabs defaultValue="general" className="w-full">
             <TabsList className="w-full mb-4 grid grid-cols-3 h-auto p-1">
               <TabsTrigger value="general" className="flex items-center gap-1.5 py-2 text-xs sm:text-sm">
-                <Building2 className="h-3.5 w-3.5 shrink-0" />
-                <span>General</span>
+                <Building2 className="h-3.5 w-3.5 shrink-0" /><span>General</span>
               </TabsTrigger>
-              <TabsTrigger value="stripe" className="flex items-center gap-1.5 py-2 text-xs sm:text-sm">
-                <CreditCard className="h-3.5 w-3.5 shrink-0" />
-                <span>Stripe</span>
-                {config.stripe_enabled && <span className="hidden sm:inline-block h-1.5 w-1.5 rounded-full bg-purple-500 ml-0.5" />}
+              <TabsTrigger value="limites" className="flex items-center gap-1.5 py-2 text-xs sm:text-sm">
+                <Users className="h-3.5 w-3.5 shrink-0" /><span>Límites</span>
               </TabsTrigger>
               <TabsTrigger value="smtp" className="flex items-center gap-1.5 py-2 text-xs sm:text-sm">
-                <Mail className="h-3.5 w-3.5 shrink-0" />
-                <span>SMTP</span>
+                <Mail className="h-3.5 w-3.5 shrink-0" /><span>SMTP</span>
                 {config.smtp_enabled && <span className="hidden sm:inline-block h-1.5 w-1.5 rounded-full bg-blue-500 ml-0.5" />}
               </TabsTrigger>
             </TabsList>
@@ -268,52 +483,27 @@ function CreateTenantDialog({ open, onOpenChange, onCreated }: {
                   {logoPreview && <img src={logoPreview} alt="Logo" className="h-full w-full object-contain" />}
                 </div>
                 <div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                    className="hidden"
-                    onChange={handleLogoSelect}
-                  />
+                  <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden" onChange={handleLogoSelect} />
                   <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
-                    <Upload className="h-4 w-4 mr-2" />
-                    {logoFile ? "Cambiar Logo" : "Añadir Logo"}
+                    <Upload className="h-4 w-4 mr-2" />{logoFile ? "Cambiar Logo" : "Añadir Logo"}
                   </Button>
                   <p className="text-xs text-klyp-gray mt-1">PNG, JPEG, WebP o SVG</p>
                 </div>
               </div>
-              <TenantFormFields form={form} setForm={setForm} />
+              <TenantFormFieldsBasic form={form} setForm={setForm} />
             </TabsContent>
 
-            {/* ── Stripe ── */}
-            <TabsContent value="stripe" className="space-y-4 mt-0">
-              <div className="flex items-center justify-between p-4 rounded-xl border-2 transition-colors" style={{
-                borderColor: config.stripe_enabled ? "rgb(147 51 234 / 0.3)" : "rgb(229 231 235)",
-                backgroundColor: config.stripe_enabled ? "rgb(250 245 255)" : "rgb(249 250 251)",
-              }}>
-                <div className="flex items-center gap-3">
-                  <div className={`h-9 w-9 rounded-lg flex items-center justify-center ${config.stripe_enabled ? "bg-purple-100" : "bg-gray-100"}`}>
-                    <CreditCard className={`h-5 w-5 ${config.stripe_enabled ? "text-purple-600" : "text-gray-400"}`} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-klyp-navy">TPV virtual (Stripe)</p>
-                    <p className="text-xs text-klyp-gray">Pagos online con tarjeta</p>
-                  </div>
-                </div>
-                <ToggleSwitch enabled={config.stripe_enabled} onChange={() => setConfig((p) => ({ ...p, stripe_enabled: !p.stripe_enabled }))} />
-              </div>
-              <div className="space-y-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
+            {/* ── Límites ── */}
+            <TabsContent value="limites" className="space-y-4 mt-0">
+              <p className="text-xs text-klyp-gray">Número máximo de usuarios de cada tipo que puede tener esta empresa.</p>
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Clave secreta (Secret Key)</Label>
-                  <Input type="password" {...cfgField("stripe_secret_key")} placeholder="sk_live_..." />
+                  <Label>Máx. Admin Empresa</Label>
+                  <Input type="number" min={1} max={100} value={form.max_company_admins} onChange={(e) => setForm((p) => ({ ...p, max_company_admins: Number(e.target.value) }))} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Webhook Secret</Label>
-                  <Input type="password" {...cfgField("stripe_webhook_secret")} placeholder="whsec_..." />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Moneda</Label>
-                  <Input {...cfgField("stripe_currency")} placeholder="EUR" maxLength={3} className="uppercase w-24" />
+                  <Label>Máx. Gestión</Label>
+                  <Input type="number" min={1} max={500} value={form.max_reception_users} onChange={(e) => setForm((p) => ({ ...p, max_reception_users: Number(e.target.value) }))} />
                 </div>
               </div>
             </TabsContent>
@@ -384,29 +574,17 @@ function CreateTenantDialog({ open, onOpenChange, onCreated }: {
 // ─── Dialogo Editar ───────────────────────────────────────────────────────────
 
 type ConfigFormData = {
-  stripe_enabled: boolean;
-  stripe_secret_key: string;
-  stripe_webhook_secret: string;
-  stripe_currency: string;
   smtp_enabled: boolean;
   smtp_host: string;
   smtp_port: number;
   smtp_user: string;
   smtp_password: string;
   smtp_from: string;
-  redsys_enabled: boolean;
-  redsys_merchant_code: string;
-  redsys_terminal: string;
-  redsys_secret_key: string;
-  redsys_currency: string;
-  redsys_environment: string;
 };
-type ConfigStringKey = Exclude<keyof ConfigFormData, "stripe_enabled" | "smtp_enabled" | "redsys_enabled">;
+type ConfigStringKey = Exclude<keyof ConfigFormData, "smtp_enabled">;
 
 const emptyConfig = (): ConfigFormData => ({
-  stripe_enabled: false, stripe_secret_key: "", stripe_webhook_secret: "", stripe_currency: "EUR",
   smtp_enabled: false, smtp_host: "", smtp_port: 587, smtp_user: "", smtp_password: "", smtp_from: "",
-  redsys_enabled: false, redsys_merchant_code: "", redsys_terminal: "", redsys_secret_key: "", redsys_currency: "978", redsys_environment: "sandbox",
 });
 
 function ToggleSwitch({ enabled, onChange }: { enabled: boolean; onChange: () => void }) {
@@ -443,7 +621,7 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
     max_reception_users: tenant.max_reception_users,
   });
   const [config, setConfig] = useState<ConfigFormData>(emptyConfig());
-  const [configMeta, setConfigMeta] = useState({ stripe_secret_key_set: false, stripe_webhook_secret_set: false, smtp_password_set: false, smtp_verified_at: null as string | null, redsys_secret_key_set: false });
+  const [configMeta, setConfigMeta] = useState({ smtp_password_set: false, smtp_verified_at: null as string | null });
   const [loadingConfig, setLoadingConfig] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testingSmtp, setTestingSmtp] = useState(false);
@@ -453,6 +631,14 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
   const [sendTestEmailResult, setSendTestEmailResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Pasarelas
+  const [gateways, setGateways] = useState<PaymentGateway[]>([]);
+  const [loadingGateways, setLoadingGateways] = useState(false);
+  const [showGwDialog, setShowGwDialog] = useState(false);
+  const [editingGw, setEditingGw] = useState<PaymentGateway | null>(null);
+  const [togglingGw, setTogglingGw] = useState<string | null>(null);
+  const [deletingGw, setDeletingGw] = useState<string | null>(null);
+  const [gwError, setGwError] = useState<string | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(
     tenant.logo_url ? `${API_URL}${tenant.logo_url}` : null
   );
@@ -471,37 +657,18 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
   useEffect(() => {
     if (!open) return;
     setLoadingConfig(true);
-    tenantsApi.getConfig(tenant.id)
-      .then((res) => {
-        const d = res.data;
-        setConfig({
-          stripe_enabled: d.stripe_enabled,
-          stripe_secret_key: "",
-          stripe_webhook_secret: "",
-          stripe_currency: d.stripe_currency,
-          smtp_enabled: d.smtp_enabled,
-          smtp_host: d.smtp_host ?? "",
-          smtp_port: d.smtp_port,
-          smtp_user: d.smtp_user ?? "",
-          smtp_password: "",
-          smtp_from: d.smtp_from ?? "",
-          redsys_enabled: d.redsys_enabled,
-          redsys_merchant_code: d.redsys_merchant_code ?? "",
-          redsys_terminal: d.redsys_terminal ?? "",
-          redsys_secret_key: "",
-          redsys_currency: d.redsys_currency,
-          redsys_environment: d.redsys_environment,
-        });
-        setConfigMeta({
-          stripe_secret_key_set: d.stripe_secret_key_set,
-          stripe_webhook_secret_set: d.stripe_webhook_secret_set,
-          smtp_password_set: d.smtp_password_set,
-          smtp_verified_at: d.smtp_verified_at ?? null,
-          redsys_secret_key_set: d.redsys_secret_key_set,
-        });
-      })
+    setLoadingGateways(true);
+    Promise.all([
+      tenantsApi.getConfig(tenant.id),
+      paymentGatewaysApi.list(tenant.id),
+    ]).then(([configRes, gwRes]) => {
+      const d = configRes.data;
+      setConfig({ smtp_enabled: d.smtp_enabled, smtp_host: d.smtp_host ?? "", smtp_port: d.smtp_port, smtp_user: d.smtp_user ?? "", smtp_password: "", smtp_from: d.smtp_from ?? "" });
+      setConfigMeta({ smtp_password_set: d.smtp_password_set, smtp_verified_at: d.smtp_verified_at ?? null });
+      setGateways(gwRes.data);
+    })
       .catch(() => {})
-      .finally(() => setLoadingConfig(false));
+      .finally(() => { setLoadingConfig(false); setLoadingGateways(false); });
   }, [open, tenant.id]);
 
   const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -546,23 +713,13 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
     setSaving(true); setError(null);
     try {
       const configPayload: Record<string, unknown> = {
-        stripe_enabled: config.stripe_enabled,
-        stripe_currency: config.stripe_currency,
         smtp_enabled: config.smtp_enabled,
         smtp_host: config.smtp_host || null,
         smtp_port: config.smtp_port,
         smtp_user: config.smtp_user || null,
         smtp_from: config.smtp_from || null,
-        redsys_enabled: config.redsys_enabled,
-        redsys_merchant_code: config.redsys_merchant_code || null,
-        redsys_terminal: config.redsys_terminal || null,
-        redsys_currency: config.redsys_currency,
-        redsys_environment: config.redsys_environment,
       };
-      if (config.stripe_secret_key) configPayload["stripe_secret_key"] = config.stripe_secret_key;
-      if (config.stripe_webhook_secret) configPayload["stripe_webhook_secret"] = config.stripe_webhook_secret;
       if (config.smtp_password) configPayload["smtp_password"] = config.smtp_password;
-      if (config.redsys_secret_key) configPayload["redsys_secret_key"] = config.redsys_secret_key;
 
       const [tenantRes] = await Promise.all([
         tenantsApi.update(tenant.id, {
@@ -606,6 +763,23 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
     } finally { setSavingBranding(false); }
   };
 
+  const handleToggleGw = async (gw: PaymentGateway) => {
+    setTogglingGw(gw.id); setGwError(null);
+    try {
+      const res = await paymentGatewaysApi.update(tenant.id, gw.id, { is_active: !gw.is_active });
+      setGateways((prev) => prev.map((g) => g.type === gw.type ? { ...g, is_active: false } : g).map((g) => g.id === gw.id ? res.data : g));
+    } catch (e) { setGwError(extractApiErrorMessage(e)); } finally { setTogglingGw(null); }
+  };
+
+  const handleDeleteGw = async (gw: PaymentGateway) => {
+    if (!confirm(`¿Eliminar la pasarela "${gw.name}"?`)) return;
+    setDeletingGw(gw.id); setGwError(null);
+    try {
+      await paymentGatewaysApi.delete(tenant.id, gw.id);
+      setGateways((prev) => prev.filter((g) => g.id !== gw.id));
+    } catch (e) { setGwError(extractApiErrorMessage(e)); } finally { setDeletingGw(null); }
+  };
+
   const cfgField = (key: ConfigStringKey) => ({
     value: String(config[key]),
     onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -639,27 +813,21 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
           <Tabs defaultValue="general" className="w-full">
             <TabsList className="w-full mb-4 grid grid-cols-5 h-auto p-1">
               <TabsTrigger value="general" className="flex items-center gap-1.5 py-2 text-xs sm:text-sm">
-                <Building2 className="h-3.5 w-3.5 shrink-0" />
-                <span>General</span>
+                <Building2 className="h-3.5 w-3.5 shrink-0" /><span>General</span>
               </TabsTrigger>
-              <TabsTrigger value="stripe" className="flex items-center gap-1.5 py-2 text-xs sm:text-sm">
-                <CreditCard className="h-3.5 w-3.5 shrink-0" />
-                <span>Stripe</span>
-                {config.stripe_enabled && <span className="hidden sm:inline-block h-1.5 w-1.5 rounded-full bg-purple-500 ml-0.5" />}
+              <TabsTrigger value="limites" className="flex items-center gap-1.5 py-2 text-xs sm:text-sm">
+                <Users className="h-3.5 w-3.5 shrink-0" /><span>Límites</span>
+              </TabsTrigger>
+              <TabsTrigger value="pasarelas" className="flex items-center gap-1.5 py-2 text-xs sm:text-sm">
+                <CreditCard className="h-3.5 w-3.5 shrink-0" /><span>Pasarelas</span>
+                {gateways.some((g) => g.is_active) && <span className="hidden sm:inline-block h-1.5 w-1.5 rounded-full bg-green-500 ml-0.5" />}
               </TabsTrigger>
               <TabsTrigger value="smtp" className="flex items-center gap-1.5 py-2 text-xs sm:text-sm">
-                <Mail className="h-3.5 w-3.5 shrink-0" />
-                <span>SMTP</span>
+                <Mail className="h-3.5 w-3.5 shrink-0" /><span>SMTP</span>
                 {config.smtp_enabled && <span className="hidden sm:inline-block h-1.5 w-1.5 rounded-full bg-blue-500 ml-0.5" />}
               </TabsTrigger>
-              <TabsTrigger value="redsys" className="flex items-center gap-1.5 py-2 text-xs sm:text-sm">
-                <CreditCard className="h-3.5 w-3.5 shrink-0" />
-                <span>Redsys</span>
-                {config.redsys_enabled && <span className="hidden sm:inline-block h-1.5 w-1.5 rounded-full bg-green-500 ml-0.5" />}
-              </TabsTrigger>
               <TabsTrigger value="branding" className="flex items-center gap-1.5 py-2 text-xs sm:text-sm">
-                <Palette className="h-3.5 w-3.5 shrink-0" />
-                <span>Branding</span>
+                <Palette className="h-3.5 w-3.5 shrink-0" /><span>Branding</span>
               </TabsTrigger>
             </TabsList>
 
@@ -668,56 +836,51 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
               <TenantFormFields form={form} setForm={setForm} />
             </TabsContent>
 
-            {/* ── Stripe ── */}
-            <TabsContent value="stripe" className="space-y-4 mt-0">
-              {loadingConfig ? (
-                <div className="space-y-2">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-10 w-full rounded-md" />)}</div>
-              ) : (
-                <>
-                  {/* Status toggle */}
-                  <div className="flex items-center justify-between p-4 rounded-xl border-2 transition-colors" style={{
-                    borderColor: config.stripe_enabled ? "rgb(147 51 234 / 0.3)" : "rgb(229 231 235)",
-                    backgroundColor: config.stripe_enabled ? "rgb(250 245 255)" : "rgb(249 250 251)",
-                  }}>
-                    <div className="flex items-center gap-3">
-                      <div className={`h-9 w-9 rounded-lg flex items-center justify-center ${config.stripe_enabled ? "bg-purple-100" : "bg-gray-100"}`}>
-                        <CreditCard className={`h-5 w-5 ${config.stripe_enabled ? "text-purple-600" : "text-gray-400"}`} />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-klyp-navy">TPV virtual (Stripe)</p>
-                        <p className="text-xs text-klyp-gray">Pagos online con tarjeta</p>
-                      </div>
-                    </div>
-                    <ToggleSwitch enabled={config.stripe_enabled} onChange={() => setConfig((p) => ({ ...p, stripe_enabled: !p.stripe_enabled }))} />
-                  </div>
+            {/* ── Límites ── */}
+            <TabsContent value="limites" className="space-y-4 mt-0">
+              <p className="text-xs text-klyp-gray">Número máximo de usuarios de cada tipo que puede tener esta empresa.</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Máx. Admin Empresa</Label>
+                  <Input type="number" min={1} max={100} value={form.max_company_admins} onChange={(e) => setForm((p) => ({ ...p, max_company_admins: Number(e.target.value) }))} />
+                  <p className="text-xs text-klyp-gray">Usuarios con rol Admin Empresa.</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Máx. Gestión</Label>
+                  <Input type="number" min={1} max={500} value={form.max_reception_users} onChange={(e) => setForm((p) => ({ ...p, max_reception_users: Number(e.target.value) }))} />
+                  <p className="text-xs text-klyp-gray">Usuarios con rol Recepción / Gestión.</p>
+                </div>
+              </div>
+            </TabsContent>
 
-                  <div className="space-y-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Clave secreta (Secret Key)</Label>
-                      <Input type="password" {...cfgField("stripe_secret_key")} placeholder={configMeta.stripe_secret_key_set ? "sk_••••••••••••••••••••" : "sk_live_..."} />
-                      {configMeta.stripe_secret_key_set && (
-                        <p className="text-xs text-green-600 flex items-center gap-1">
-                          <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500" />
-                          Configurada — deja en blanco para mantener la actual
-                        </p>
-                      )}
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Webhook Secret</Label>
-                      <Input type="password" {...cfgField("stripe_webhook_secret")} placeholder={configMeta.stripe_webhook_secret_set ? "whsec_••••••••••••••••••" : "whsec_..."} />
-                      {configMeta.stripe_webhook_secret_set && (
-                        <p className="text-xs text-green-600 flex items-center gap-1">
-                          <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500" />
-                          Configurado — deja en blanco para mantener el actual
-                        </p>
-                      )}
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Moneda</Label>
-                      <Input {...cfgField("stripe_currency")} placeholder="EUR" maxLength={3} className="uppercase w-24" />
-                    </div>
-                  </div>
-                </>
+            {/* ── Pasarelas ── */}
+            <TabsContent value="pasarelas" className="space-y-3 mt-0">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-klyp-gray">Solo puede haber una pasarela activa por tipo.</p>
+                <button onClick={() => { setEditingGw(null); setShowGwDialog(true); }} className="inline-flex items-center h-8 px-3 rounded-md bg-klyp-accent text-white text-xs font-medium hover:bg-klyp-accent/90">
+                  <Plus className="h-3.5 w-3.5 mr-1" />Añadir
+                </button>
+              </div>
+              {gwError && <p className="text-xs text-red-600">{gwError}</p>}
+              {loadingGateways
+                ? <div className="space-y-2">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-10 w-full rounded-md" />)}</div>
+                : <GatewayTable tenantId={tenant.id} gateways={gateways} onEdit={(gw) => { setEditingGw(gw); setShowGwDialog(true); }} onToggle={handleToggleGw} onDelete={handleDeleteGw} toggling={togglingGw} deleting={deletingGw} />
+              }
+              {gateways.some((g) => g.type === "redsys" && g.is_active) && (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                  <p className="text-xs text-klyp-gray font-medium mb-1">URL de notificación IPN (Redsys)</p>
+                  <code className="block bg-white border border-gray-200 rounded px-2 py-1.5 text-xs font-mono text-klyp-navy break-all">
+                    {process.env["NEXT_PUBLIC_API_URL"] ?? ""}/api/v1/redsys/notification
+                  </code>
+                </div>
+              )}
+              {gateways.some((g) => g.type === "stripe" && g.is_active) && (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                  <p className="text-xs text-klyp-gray font-medium mb-1">URL del webhook (Stripe)</p>
+                  <code className="block bg-white border border-gray-200 rounded px-2 py-1.5 text-xs font-mono text-klyp-navy break-all">
+                    {process.env["NEXT_PUBLIC_API_URL"] ?? ""}/api/v1/webhooks/stripe/{tenant.slug}
+                  </code>
+                </div>
               )}
             </TabsContent>
 
@@ -828,77 +991,6 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
                   <div className="flex items-start gap-2.5 p-3 bg-klyp-pale rounded-lg border border-klyp-accent/20 text-xs text-klyp-gray">
                     <Info className="h-3.5 w-3.5 text-klyp-accent shrink-0 mt-0.5" />
                     <span>Si no hay SMTP propio configurado, se usará el <strong className="text-klyp-navy">SMTP global</strong> del sistema como fallback.</span>
-                  </div>
-                </>
-              )}
-            </TabsContent>
-
-            {/* ── Redsys ── */}
-            <TabsContent value="redsys" className="space-y-4 mt-0">
-              {loadingConfig ? (
-                <div className="space-y-2">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-10 w-full rounded-md" />)}</div>
-              ) : (
-                <>
-                  <div className="flex items-center justify-between p-4 rounded-xl border-2 transition-colors" style={{
-                    borderColor: config.redsys_enabled ? "rgb(22 163 74 / 0.3)" : "rgb(229 231 235)",
-                    backgroundColor: config.redsys_enabled ? "rgb(240 253 244)" : "rgb(249 250 251)",
-                  }}>
-                    <div className="flex items-center gap-3">
-                      <div className={`h-9 w-9 rounded-lg flex items-center justify-center ${config.redsys_enabled ? "bg-green-100" : "bg-gray-100"}`}>
-                        <CreditCard className={`h-5 w-5 ${config.redsys_enabled ? "text-green-600" : "text-gray-400"}`} />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-klyp-navy">TPV Virtual (Redsys)</p>
-                        <p className="text-xs text-klyp-gray">Pagos online con tarjeta vía Redsys</p>
-                      </div>
-                    </div>
-                    <ToggleSwitch enabled={config.redsys_enabled} onChange={() => setConfig((p) => ({ ...p, redsys_enabled: !p.redsys_enabled }))} />
-                  </div>
-                  <div className="space-y-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Código de comercio / FUC</Label>
-                        <Input {...cfgField("redsys_merchant_code")} placeholder="Ej: 999008881" maxLength={15} />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Terminal</Label>
-                        <Input {...cfgField("redsys_terminal")} placeholder="Ej: 001" maxLength={3} className="w-28" />
-                      </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">
-                        Clave secreta (HMAC-SHA512)
-                        {configMeta.redsys_secret_key_set && (
-                          <span className="ml-2 normal-case font-normal text-green-600">— configurada, dejar vacío para mantener</span>
-                        )}
-                      </Label>
-                      <Input type="password" {...cfgField("redsys_secret_key")} placeholder="sq7HjrUOBfKmC576ILgskD5srU870gJ7..." />
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Moneda (ISO 4217 numérico)</Label>
-                        <Input {...cfgField("redsys_currency")} placeholder="978" maxLength={3} className="w-24" />
-                        <p className="text-xs text-klyp-gray">978 = EUR</p>
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">Entorno</Label>
-                        <select
-                          value={config.redsys_environment}
-                          onChange={(e) => setConfig((p) => ({ ...p, redsys_environment: e.target.value }))}
-                          className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm w-full"
-                        >
-                          <option value="sandbox">Sandbox (pruebas)</option>
-                          <option value="production">Producción</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold text-klyp-gray uppercase tracking-wide">URL de notificación IPN</Label>
-                      <code className="block bg-white border border-gray-200 rounded px-3 py-2 text-xs font-mono text-klyp-navy break-all">
-                        {process.env["NEXT_PUBLIC_API_URL"] ?? ""}/api/v1/redsys/notification
-                      </code>
-                      <p className="text-xs text-klyp-gray">Configura esta URL en el portal de Redsys como URL de notificación.</p>
-                    </div>
                   </div>
                 </>
               )}
@@ -1039,6 +1131,19 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
         </div>
       </DialogContent>
     </Dialog>
+    {showGwDialog && (
+      <GatewayDialog
+        tenantId={tenant.id}
+        editing={editingGw}
+        onClose={() => { setShowGwDialog(false); setEditingGw(null); }}
+        onSaved={(gw) => {
+          setGateways((prev) => {
+            const exists = prev.find((g) => g.id === gw.id);
+            return exists ? prev.map((g) => g.id === gw.id ? gw : g) : [...prev, gw];
+          });
+        }}
+      />
+    )}
   );
 }
 
