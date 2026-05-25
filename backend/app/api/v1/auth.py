@@ -35,7 +35,8 @@ async def login(
     response: Response,
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> TokenResponse:
-    ip = request.client.host if request.client else None
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    ip = forwarded_for.split(",")[0].strip() if forwarded_for else (request.client.host if request.client else None)
     token_response, refresh_token = await login_user(credentials, session, ip_address=ip)
 
     # Refresh token en HttpOnly cookie — nunca expuesto al JS del cliente
