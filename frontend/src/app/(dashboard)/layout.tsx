@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 
 const DEFAULT_PRIMARY = "#051937";
 const DEFAULT_ACCENT = "#2E6DB4";
+const STYLE_ID = "tenant-brand-theme";
 
 export default function DashboardLayout({
   children,
@@ -36,9 +37,6 @@ export default function DashboardLayout({
 
   useEffect(() => {
     if (!effectiveTenantId) { clearBranding(); return; }
-    const params = isSuperAdmin && selectedTenantId
-      ? `?tenant_id=${selectedTenantId}`
-      : "";
     void settingsApi.getBranding()
       .then((r) => {
         setBranding({
@@ -50,9 +48,32 @@ export default function DashboardLayout({
         });
       })
       .catch(() => { /* usa colores por defecto */ });
-    void params;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveTenantId]);
+
+  // Inyectar variables CSS en <head> para que apliquen también en portales Radix
+  // (Dialog, Select, DropdownMenu se renderizan fuera del árbol del layout)
+  const brandPrimary = primary_color ?? DEFAULT_PRIMARY;
+  const brandAccent = accent_color ?? DEFAULT_ACCENT;
+
+  useEffect(() => {
+    let el = document.getElementById(STYLE_ID) as HTMLStyleElement | null;
+    if (!el) {
+      el = document.createElement("style");
+      el.id = STYLE_ID;
+      document.head.appendChild(el);
+    }
+    el.textContent = `:root {
+  --color-klyp-navy: ${brandPrimary};
+  --color-klyp-navy-light: ${brandPrimary}cc;
+  --color-klyp-accent: ${brandAccent};
+  --klyp-navy: ${brandPrimary};
+  --klyp-accent: ${brandAccent};
+}`;
+    return () => {
+      document.getElementById(STYLE_ID)?.remove();
+    };
+  }, [brandPrimary, brandAccent]);
 
   if (!isAuthenticated) return null;
   if (isSuperAdmin && !selectedTenantId) return null;
@@ -62,19 +83,8 @@ export default function DashboardLayout({
     router.replace("/empresas");
   };
 
-  const brandPrimary = primary_color ?? DEFAULT_PRIMARY;
-  const brandAccent = accent_color ?? DEFAULT_ACCENT;
-
   return (
-    <div
-      className="flex h-screen overflow-hidden bg-klyp-pale"
-      style={{
-        "--color-klyp-navy": brandPrimary,
-        "--color-klyp-accent": brandAccent,
-        "--klyp-navy": brandPrimary,
-        "--klyp-accent": brandAccent,
-      } as React.CSSProperties}
-    >
+    <div className="flex h-screen overflow-hidden bg-klyp-pale">
       {/* Sidebar — oculto en móvil, visible en desktop */}
       <div className="hidden md:flex md:flex-shrink-0">
         <Sidebar />

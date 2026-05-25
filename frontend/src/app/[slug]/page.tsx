@@ -117,14 +117,14 @@ export default function TenantLandingPage() {
     <div className="flex min-h-screen flex-col bg-klyp-pale">
       {/* Header con branding dinámico */}
       <header style={{ backgroundColor: primaryColor }} className="shadow-md">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:py-4 sm:px-6">
           <div className="flex items-center gap-3">
             {logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={logoUrl}
                 alt={displayName}
-                className="h-10 w-auto max-w-[180px] object-contain"
+                className="h-16 sm:h-20 w-auto max-w-[240px] sm:max-w-[320px] object-contain"
               />
             ) : (
               <>
