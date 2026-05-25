@@ -11,24 +11,30 @@ Seguridad IPN:
 - Siempre devuelve HTTP 200 para evitar reintentos de Redsys.
 """
 
+import logging
 import os
 from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
+logger = logging.getLogger(__name__)
+
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, status
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.config import settings
 from app.core.database import get_session
 from app.core.dependencies import require_role
 from app.core.crypto import decrypt_secret
 from app.models.billing import PaymentStatus
-from app.models.reservation import Reservation
+from app.models.reservation import Reservation, ReservationStatus
+from app.models.system_settings import SystemSettings
 from app.models.tenant import Tenant
 from app.models.user import User, UserRole
 from app.schemas.billing import RedsysFormData
 from app.services import redsys_service
+from app.services.email_service import send_confirmation_email
 
 router = APIRouter(tags=["Redsys"])
 
@@ -236,3 +242,29 @@ async def redsys_notification(
     payment.updated_at = datetime.utcnow()
     session.add(payment)
     await session.commit()
+
+    if payment_approved:
+        # Confirmar la reserva
+        reservation = await session.get(Reservation, payment.reservation_id)
+        if reservation and reservation.status == ReservationStatus.pending_payment:
+            reservation.status = ReservationStatus.confirmed
+            session.add(reservation)
+            await session.commit()
+            await session.refresh(reservation)
+
+            # Email de confirmación
+            try:
+                system_smtp = await session.get(SystemSettings, 1)
+                send_confirmation_email(reservation, tenant, settings.frontend_url, system_smtp)
+            except Exception as email_exc:
+                logger.error("Error enviando email de confirmación (Redsys): %s", email_exc)
+
+            # Email de carga de documentos
+            try:
+                from app.services import guest_doc_service
+                token = await guest_doc_service.get_or_create_token(session, reservation)
+                await session.commit()
+                await session.refresh(token)
+                await guest_doc_service.send_docs_link_email(session, reservation, tenant, token.token)
+            except Exception as docs_exc:
+                logger.error("Error enviando email de documentos (Redsys): %s", docs_exc)
