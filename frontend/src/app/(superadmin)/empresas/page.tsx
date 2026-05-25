@@ -787,6 +787,7 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
   });
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-full max-w-[95vw] sm:max-w-3xl max-h-[90vh] overflow-y-auto p-0">
         {/* ── Cabecera visual ── */}
@@ -1144,6 +1145,7 @@ function EditTenantDialog({ tenant, open, onOpenChange, onUpdated }: {
         }}
       />
     )}
+    </>
   );
 }
 
