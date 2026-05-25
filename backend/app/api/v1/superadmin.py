@@ -1024,3 +1024,83 @@ async def delete_payment_gateway(
             session.add(tenant)
     await session.delete(gw)
     await session.commit()
+
+
+# ─── Borrado avanzado — purga de datos operativos ─────────────────────────────
+
+class PurgeOperationalDataPayload(BaseModel):
+    password: str
+
+
+class PurgeOperationalDataResult(BaseModel):
+    tenant_id: str
+    tenant_name: str
+    deleted: dict[str, int]
+
+
+@router.post("/tenants/{tenant_id}/purge-operational-data", response_model=PurgeOperationalDataResult)
+async def purge_operational_data(
+    tenant_id: UUID,
+    payload: PurgeOperationalDataPayload,
+    current_user: SuperAdminDep,
+    session: SessionDep,
+) -> PurgeOperationalDataResult:
+    """
+    Borra todos los datos operativos de una empresa (reservas, facturas, logs, etc.)
+    manteniendo intacta su configuración (usuarios, alojamientos, tarifas, pasarelas…).
+    Requiere la contraseña del superadmin que ejecuta la acción.
+    """
+    tenant = await session.get(Tenant, tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail={"error": {"code": "TENANT_NOT_FOUND", "message": "Empresa no encontrada."}})
+
+    if not verify_password(payload.password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=403,
+            detail={"error": {"code": "INVALID_PASSWORD", "message": "Contraseña incorrecta."}},
+        )
+
+    tid = str(tenant_id)
+    counts: dict[str, int] = {}
+
+    # Orden respetando FK: primero las tablas hijo, luego las padre
+    steps = [
+        # children of reservations
+        ("guest_upload_tokens",         f"DELETE FROM guest_upload_tokens WHERE tenant_id = '{tid}'"),
+        ("reservation_access_codes",    f"DELETE FROM reservation_access_codes WHERE tenant_id = '{tid}'"),
+        ("reservation_vehicles",        f"DELETE FROM reservation_vehicles WHERE tenant_id = '{tid}'"),
+        ("reservation_guests",          f"DELETE FROM reservation_guests WHERE tenant_id = '{tid}'"),
+        ("reservation_history",         f"DELETE FROM reservation_history WHERE tenant_id = '{tid}'"),
+        ("reservation_change_requests", f"DELETE FROM reservation_change_requests WHERE tenant_id = '{tid}'"),
+        ("refund_orders",               f"DELETE FROM refund_orders WHERE tenant_id = '{tid}'"),
+        ("reservation_payments",        f"DELETE FROM reservation_payments WHERE tenant_id = '{tid}'"),
+        # invoices: credit notes first (self-referencing FK), then regular
+        ("invoices_credit_notes",       f"DELETE FROM invoices WHERE tenant_id = '{tid}' AND is_credit_note = TRUE"),
+        ("invoices",                    f"DELETE FROM invoices WHERE tenant_id = '{tid}'"),
+        # reset invoice counter
+        ("invoice_sequences",           f"DELETE FROM invoice_sequences WHERE tenant_id = '{tid}'"),
+        # reservations (parent)
+        ("reservations",                f"DELETE FROM reservations WHERE tenant_id = '{tid}'"),
+        # calendar blocks
+        ("blockings",                   f"DELETE FROM blockings WHERE tenant_id = '{tid}'"),
+        # logs — no FK, just tenant_id filter
+        ("mail_logs",                   f"DELETE FROM mail_logs WHERE tenant_id = '{tid}'"),
+        ("access_logs",                 f"DELETE FROM access_logs WHERE tenant_id = '{tid}'"),
+    ]
+
+    for key, sql in steps:
+        result = await session.exec(text(sql))  # type: ignore[arg-type]
+        counts[key] = result.rowcount  # type: ignore[union-attr]
+
+    await session.commit()
+
+    logger.info(
+        "purge_operational_data: tenant=%s counts=%s performed_by=%s",
+        tid, counts, current_user.email,
+    )
+
+    return PurgeOperationalDataResult(
+        tenant_id=tid,
+        tenant_name=tenant.name,
+        deleted=counts,
+    )

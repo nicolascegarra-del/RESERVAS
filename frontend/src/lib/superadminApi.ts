@@ -231,3 +231,19 @@ export const rolePermissionsApi = {
   update: (data: { role: string; permission_key: string; is_enabled: boolean }) =>
     client.patch<RolePermission>("/api/v1/superadmin/role-permissions", data),
 };
+
+// ─── Borrado avanzado ─────────────────────────────────────────────────────────
+
+export interface PurgeOperationalDataResult {
+  tenant_id: string;
+  tenant_name: string;
+  deleted: Record<string, number>;
+}
+
+export const advancedApi = {
+  purgeOperationalData: (tenantId: string, password: string) =>
+    client.post<PurgeOperationalDataResult>(
+      `/api/v1/superadmin/tenants/${tenantId}/purge-operational-data`,
+      { password },
+    ),
+};
