@@ -243,13 +243,13 @@ def _test_smtp_connection(host: str, port: int, user: str, password: str | None)
     ssl_context.verify_mode = ssl.CERT_NONE
     try:
         if use_ssl:
-            with smtplib.SMTP_SSL(host, port, context=ssl_context, timeout=15) as server:
+            with smtplib.SMTP_SSL(host, port, context=ssl_context, timeout=8) as server:
                 server.ehlo()
                 if password:
                     server.login(user, password)
                 server.noop()
         else:
-            with smtplib.SMTP(host, port, timeout=15) as server:
+            with smtplib.SMTP(host, port, timeout=8) as server:
                 server.ehlo()
                 server.starttls(context=ssl_context)
                 server.ehlo()
@@ -401,7 +401,15 @@ async def test_tenant_smtp(tenant_id: UUID, _: SuperAdminDep, session: SessionDe
     password = decrypt_secret(tenant.smtp_password) if tenant.smtp_password else None
     try:
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, _test_smtp_connection, tenant.smtp_host, tenant.smtp_port, tenant.smtp_user, password)
+        await asyncio.wait_for(
+            loop.run_in_executor(None, _test_smtp_connection, tenant.smtp_host, tenant.smtp_port, tenant.smtp_user, password),
+            timeout=20.0,
+        )
+    except asyncio.TimeoutError:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": {"code": "SMTP_TIMEOUT", "message": "Tiempo de conexión agotado. Revisa el host y puerto."}},
+        )
     except Exception as e:
         raise HTTPException(
             status_code=400,
@@ -517,7 +525,15 @@ async def test_system_smtp(_: SuperAdminDep, session: SessionDep) -> dict:
     password = decrypt_secret(s.smtp_password) if s.smtp_password else None
     try:
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, _test_smtp_connection, s.smtp_host, s.smtp_port, s.smtp_user, password)
+        await asyncio.wait_for(
+            loop.run_in_executor(None, _test_smtp_connection, s.smtp_host, s.smtp_port, s.smtp_user, password),
+            timeout=20.0,
+        )
+    except asyncio.TimeoutError:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": {"code": "SMTP_TIMEOUT", "message": "Tiempo de conexión agotado. Revisa el host y puerto."}},
+        )
     except Exception as e:
         raise HTTPException(
             status_code=400,

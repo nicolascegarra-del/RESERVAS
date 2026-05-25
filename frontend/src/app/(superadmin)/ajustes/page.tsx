@@ -109,14 +109,20 @@ export default function ConfiguracionPage() {
       setTestResult({ ok: true, message: "Conexión verificada correctamente." });
       setVerifiedAt(res.data.verified_at);
     } catch (e: unknown) {
-      const err = e as { response?: { data?: { detail?: { error?: { message?: string } } | string } } };
-      const detail = err.response?.data?.detail;
-      const msg =
-        typeof detail === "object" && detail !== null
-          ? (detail as { error?: { message?: string } }).error?.message
-          : typeof detail === "string"
-            ? detail
-            : undefined;
+      const err = e as { response?: { status?: number; data?: unknown } };
+      const data = err.response?.data;
+      let msg: string | undefined;
+      if (data && typeof data === "object") {
+        const d = data as { detail?: { error?: { message?: string } } | string };
+        if (typeof d.detail === "object" && d.detail !== null) {
+          msg = d.detail.error?.message;
+        } else if (typeof d.detail === "string") {
+          msg = d.detail;
+        }
+      }
+      if (!msg && err.response?.status === 504) {
+        msg = "Tiempo de respuesta agotado. El servidor tardó demasiado en responder.";
+      }
       setTestResult({ ok: false, message: msg ?? "Error al conectar. Revisa host, puerto y credenciales." });
     } finally { setTesting(false); }
   };
