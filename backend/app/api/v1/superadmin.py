@@ -390,19 +390,24 @@ async def update_tenant_config(tenant_id: UUID, data: TenantConfigUpdate, _: Sup
 
 @router.post("/tenants/{tenant_id}/test-smtp", status_code=200)
 async def test_tenant_smtp(tenant_id: UUID, _: SuperAdminDep, session: SessionDep) -> dict:
+    from app.services.email_service import send_smtp_test_email
     tenant = await session.get(Tenant, tenant_id)
     if not tenant:
         raise HTTPException(status_code=404, detail={"error": {"code": "TENANT_NOT_FOUND", "message": "Empresa no encontrada."}})
-    if not (tenant.smtp_host and tenant.smtp_user):
+    if not (tenant.smtp_host and tenant.smtp_user and tenant.smtp_from):
         raise HTTPException(
             status_code=400,
-            detail={"error": {"code": "SMTP_NOT_CONFIGURED", "message": "Guarda primero el host y usuario SMTP antes de probar."}},
+            detail={"error": {"code": "SMTP_NOT_CONFIGURED", "message": "Guarda primero el host, usuario y remitente SMTP antes de probar."}},
         )
     password = decrypt_secret(tenant.smtp_password) if tenant.smtp_password else None
+    loop = asyncio.get_running_loop()
     try:
-        loop = asyncio.get_running_loop()
-        await asyncio.wait_for(
-            loop.run_in_executor(None, _test_smtp_connection, tenant.smtp_host, tenant.smtp_port, tenant.smtp_user, password),
+        status, error = await asyncio.wait_for(
+            loop.run_in_executor(
+                None, send_smtp_test_email,
+                tenant.smtp_from, tenant.smtp_host, tenant.smtp_port,
+                tenant.smtp_user, password, tenant.smtp_from, "tenant", tenant_id,
+            ),
             timeout=20.0,
         )
     except asyncio.TimeoutError:
@@ -410,10 +415,10 @@ async def test_tenant_smtp(tenant_id: UUID, _: SuperAdminDep, session: SessionDe
             status_code=400,
             detail={"error": {"code": "SMTP_TIMEOUT", "message": "Tiempo de conexión agotado. Revisa el host y puerto."}},
         )
-    except Exception as e:
+    if status == "failed":
         raise HTTPException(
             status_code=400,
-            detail={"error": {"code": "SMTP_CONNECTION_FAILED", "message": f"Error de conexión: {e}"}},
+            detail={"error": {"code": "SMTP_CONNECTION_FAILED", "message": f"Error de conexión: {error}"}},
         )
     tenant.smtp_verified_at = datetime.utcnow()
     session.add(tenant)
@@ -516,17 +521,23 @@ async def update_system_smtp(data: SystemSMTPUpdate, _: SuperAdminDep, session: 
 
 @router.post("/system-smtp/test", status_code=200)
 async def test_system_smtp(_: SuperAdminDep, session: SessionDep) -> dict:
+    from app.services.email_service import send_smtp_test_email
+    from uuid import UUID as _UUID
     s = await _get_or_create_system_settings(session)
-    if not (s.smtp_host and s.smtp_user):
+    if not (s.smtp_host and s.smtp_user and s.smtp_from):
         raise HTTPException(
             status_code=400,
-            detail={"error": {"code": "SMTP_NOT_CONFIGURED", "message": "Guarda primero el host y usuario SMTP antes de probar."}},
+            detail={"error": {"code": "SMTP_NOT_CONFIGURED", "message": "Guarda primero el host, usuario y remitente SMTP antes de probar."}},
         )
     password = decrypt_secret(s.smtp_password) if s.smtp_password else None
+    loop = asyncio.get_running_loop()
     try:
-        loop = asyncio.get_running_loop()
-        await asyncio.wait_for(
-            loop.run_in_executor(None, _test_smtp_connection, s.smtp_host, s.smtp_port, s.smtp_user, password),
+        status, error = await asyncio.wait_for(
+            loop.run_in_executor(
+                None, send_smtp_test_email,
+                s.smtp_from, s.smtp_host, s.smtp_port,
+                s.smtp_user, password, s.smtp_from, "system", _UUID(int=0),
+            ),
             timeout=20.0,
         )
     except asyncio.TimeoutError:
@@ -534,10 +545,10 @@ async def test_system_smtp(_: SuperAdminDep, session: SessionDep) -> dict:
             status_code=400,
             detail={"error": {"code": "SMTP_TIMEOUT", "message": "Tiempo de conexión agotado. Revisa el host y puerto."}},
         )
-    except Exception as e:
+    if status == "failed":
         raise HTTPException(
             status_code=400,
-            detail={"error": {"code": "SMTP_CONNECTION_FAILED", "message": f"Error de conexión: {e}"}},
+            detail={"error": {"code": "SMTP_CONNECTION_FAILED", "message": f"Error de conexión: {error}"}},
         )
     s.smtp_verified_at = datetime.utcnow()
     session.add(s)

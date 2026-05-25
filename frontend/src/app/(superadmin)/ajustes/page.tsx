@@ -297,9 +297,11 @@ export default function ConfiguracionPage() {
               {testing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Wifi className="h-4 w-4 mr-2" />}
               {testing ? "Probando..." : "Probar Conexión"}
             </Button>
-            {!isConfigured && (
-              <p className="text-xs text-klyp-gray">Completa el host, usuario y remitente para probar.</p>
-            )}
+            <p className="text-xs text-klyp-gray">
+              {isConfigured
+                ? "Envía un email de auto-test al remitente configurado."
+                : "Completa el host, usuario y remitente para probar."}
+            </p>
           </div>
 
           {/* Separador */}
