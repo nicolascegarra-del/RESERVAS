@@ -214,3 +214,58 @@ class SystemSMTPUpdate(BaseModel):
     smtp_user: str | None = None
     smtp_password: str | None = None
     smtp_from: str | None = None
+
+
+# ─── Pasarelas de pago ────────────────────────────────────────────────────────
+
+
+class PaymentGatewayRead(BaseModel):
+    id: UUID
+    tenant_id: UUID
+    type: str
+    name: str
+    is_active: bool
+    # Stripe
+    stripe_secret_key_set: bool
+    stripe_webhook_secret_set: bool
+    stripe_currency: str
+    # Redsys
+    redsys_merchant_code: str | None
+    redsys_terminal: str | None
+    redsys_secret_key_set: bool
+    redsys_currency: str
+    redsys_environment: str
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class PaymentGatewayCreate(BaseModel):
+    type: str = Field(pattern=r"^(stripe|redsys)$")
+    name: str = Field(max_length=255)
+    # Stripe
+    stripe_secret_key: str | None = None
+    stripe_webhook_secret: str | None = None
+    stripe_currency: str = Field(default="eur", max_length=3)
+    # Redsys
+    redsys_merchant_code: str | None = Field(default=None, max_length=15)
+    redsys_terminal: str | None = Field(default=None, max_length=3)
+    redsys_secret_key: str | None = None
+    redsys_currency: str = Field(default="978", max_length=3)
+    redsys_environment: str = Field(default="sandbox", max_length=20)
+
+
+class PaymentGatewayUpdate(BaseModel):
+    name: str | None = Field(default=None, max_length=255)
+    is_active: bool | None = None
+    # Stripe
+    stripe_secret_key: str | None = None
+    stripe_webhook_secret: str | None = None
+    stripe_currency: str | None = Field(default=None, max_length=3)
+    # Redsys
+    redsys_merchant_code: str | None = Field(default=None, max_length=15)
+    redsys_terminal: str | None = Field(default=None, max_length=3)
+    redsys_secret_key: str | None = None
+    redsys_currency: str | None = Field(default=None, max_length=3)
+    redsys_environment: str | None = Field(default=None, max_length=20)

@@ -19,7 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CancellationPolicyCard } from "@/components/cancellations/CancellationPolicyCard";
 import { BrandingEditor } from "@/components/branding/BrandingEditor";
-import { cancellationsApi, settingsApi, companyUsersApi, billingApi, type CompanyUser, type TenantLimits } from "@/lib/api";
+import { cancellationsApi, settingsApi, companyUsersApi, billingApi, type CompanyUser, type TenantLimits, type TenantPaymentGatewaySummary } from "@/lib/api";
 import { extractApiErrorMessage } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import type { CancellationPolicy, MailNotificationConfig, PaymentMethod, PaymentMethodType } from "@/types";
@@ -912,15 +912,18 @@ function UsuariosTab() {
 
 // ─── Tab: Métodos de Pago ─────────────────────────────────────────────────────
 
-const MANUAL_METHOD_TYPES: { value: PaymentMethodType; label: string }[] = [
+type MethodCategory = "cash" | "bank_transfer" | "tpv";
+
+const METHOD_CATEGORIES: { value: MethodCategory; label: string }[] = [
   { value: "cash", label: "Efectivo" },
   { value: "bank_transfer", label: "Transferencia Bancaria" },
-  { value: "tpv_manual", label: "TPV (manual)" },
+  { value: "tpv", label: "TPV Virtual" },
 ];
 
 interface CreateMethodForm {
   name: string;
-  method_type: PaymentMethodType;
+  category: MethodCategory;
+  gateway_id: string;
   iban: string;
   bank_name: string;
   is_default: boolean;
@@ -928,7 +931,8 @@ interface CreateMethodForm {
 
 const DEFAULT_METHOD_FORM: CreateMethodForm = {
   name: "",
-  method_type: "cash",
+  category: "cash",
+  gateway_id: "",
   iban: "",
   bank_name: "",
   is_default: false,
@@ -944,20 +948,43 @@ function CreateMethodDialog({
   onCreated: (method: PaymentMethod) => void;
 }) {
   const [form, setForm] = useState<CreateMethodForm>(DEFAULT_METHOD_FORM);
+  const [gateways, setGateways] = useState<TenantPaymentGatewaySummary[]>([]);
+  const [loadingGw, setLoadingGw] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Cargar pasarelas cuando se abre el diálogo
+  useEffect(() => {
+    if (!open) return;
+    setLoadingGw(true);
+    settingsApi.getPaymentGateways()
+      .then((res) => setGateways(res.data))
+      .catch(() => setGateways([]))
+      .finally(() => setLoadingGw(false));
+  }, [open]);
+
   const handleCreate = async () => {
     if (!form.name.trim()) { setError("El nombre es obligatorio."); return; }
+    if (form.category === "tpv" && !form.gateway_id) {
+      setError("Selecciona una pasarela TPV."); return;
+    }
     setSaving(true); setError(null);
     try {
+      let method_type: PaymentMethodType = "cash";
+      if (form.category === "bank_transfer") method_type = "bank_transfer";
+      else if (form.category === "tpv") {
+        const gw = gateways.find((g) => g.id === form.gateway_id);
+        method_type = (gw?.type ?? "stripe") as PaymentMethodType;
+      }
       const config: Record<string, string> | null =
-        form.method_type === "bank_transfer" && (form.iban || form.bank_name)
+        form.category === "bank_transfer" && (form.iban || form.bank_name)
           ? { iban: form.iban, bank_name: form.bank_name }
+          : form.category === "tpv" && form.gateway_id
+          ? { gateway_id: form.gateway_id }
           : null;
       const res = await billingApi.createPaymentMethod({
         name: form.name.trim(),
-        method_type: form.method_type,
+        method_type,
         config,
         is_default: form.is_default,
       });
@@ -968,6 +995,8 @@ function CreateMethodDialog({
       setError(extractApiErrorMessage(e));
     } finally { setSaving(false); }
   };
+
+  const tpvGateways = gateways;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -988,16 +1017,16 @@ function CreateMethodDialog({
           <div className="space-y-1.5">
             <Label>Tipo</Label>
             <select
-              value={form.method_type}
-              onChange={(e) => setForm({ ...form, method_type: e.target.value as PaymentMethodType })}
+              value={form.category}
+              onChange={(e) => setForm({ ...form, category: e.target.value as MethodCategory, gateway_id: "" })}
               className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
             >
-              {MANUAL_METHOD_TYPES.map((t) => (
+              {METHOD_CATEGORIES.map((t) => (
                 <option key={t.value} value={t.value}>{t.label}</option>
               ))}
             </select>
           </div>
-          {form.method_type === "bank_transfer" && (
+          {form.category === "bank_transfer" && (
             <div className="space-y-3 rounded-lg border border-klyp-pale p-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-klyp-gray">
                 Datos bancarios
@@ -1018,6 +1047,33 @@ function CreateMethodDialog({
                   onChange={(e) => setForm({ ...form, bank_name: e.target.value })}
                 />
               </div>
+            </div>
+          )}
+          {form.category === "tpv" && (
+            <div className="space-y-1.5">
+              <Label>Pasarela TPV configurada</Label>
+              {loadingGw ? (
+                <div className="flex items-center gap-2 text-sm text-klyp-gray">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Cargando pasarelas...
+                </div>
+              ) : tpvGateways.length === 0 ? (
+                <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded p-2">
+                  No hay pasarelas TPV configuradas. Pide al superadmin que añada una.
+                </p>
+              ) : (
+                <select
+                  value={form.gateway_id}
+                  onChange={(e) => setForm({ ...form, gateway_id: e.target.value })}
+                  className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">— Selecciona una pasarela —</option>
+                  {tpvGateways.map((gw) => (
+                    <option key={gw.id} value={gw.id}>
+                      {gw.name} ({gw.type === "stripe" ? "Stripe" : "Redsys"}){gw.is_active ? " ✓" : " (inactiva)"}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           )}
           <div className="flex items-center gap-2">
@@ -1112,7 +1168,7 @@ function MetodosPagoTab() {
       <div className="flex items-center justify-between">
         <p className="text-sm text-klyp-gray">
           Configura los métodos de pago disponibles para registrar cobros de reservas.
-          Stripe y Redsys se configuran desde el panel de superadmin.
+          Los TPV virtuales (Stripe, Redsys) deben ser configurados previamente por el superadmin.
         </p>
         {canManage && (
           <Button

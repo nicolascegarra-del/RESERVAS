@@ -23,6 +23,7 @@ from app.core.database import get_session
 from app.core.dependencies import require_role
 from app.core.security import hash_password, verify_password
 from app.models.billing import PaymentMethod, PaymentMethodType
+from app.models.payment_gateway import TenantPaymentGateway
 from app.models.role_permission import PERMISSION_DEFAULTS, PERMISSION_LABELS, RolePermission
 from app.models.system_settings import SystemSettings
 from app.models.tenant import Tenant
@@ -32,6 +33,9 @@ from app.schemas.superadmin import (
     AdminUserRead,
     AdminUserUpdate,
     PasswordReset,
+    PaymentGatewayCreate,
+    PaymentGatewayRead,
+    PaymentGatewayUpdate,
     RolePermissionRead,
     RolePermissionUpdate,
     SuperAdminUserCreate,
@@ -814,3 +818,203 @@ async def update_role_permission(data: RolePermissionUpdate, _: SuperAdminDep, s
         label=PERMISSION_LABELS.get(perm.permission_key, perm.permission_key),
         is_enabled=perm.is_enabled,
     )
+
+
+# ─── Pasarelas de pago por empresa ───────────────────────────────────────────
+
+
+def _gateway_to_read(gw: TenantPaymentGateway) -> PaymentGatewayRead:
+    return PaymentGatewayRead(
+        id=gw.id,
+        tenant_id=gw.tenant_id,
+        type=gw.type,
+        name=gw.name,
+        is_active=gw.is_active,
+        stripe_secret_key_set=bool(gw.stripe_secret_key),
+        stripe_webhook_secret_set=bool(gw.stripe_webhook_secret),
+        stripe_currency=gw.stripe_currency,
+        redsys_merchant_code=gw.redsys_merchant_code,
+        redsys_terminal=gw.redsys_terminal,
+        redsys_secret_key_set=bool(gw.redsys_secret_key),
+        redsys_currency=gw.redsys_currency,
+        redsys_environment=gw.redsys_environment,
+        created_at=gw.created_at,
+        updated_at=gw.updated_at,
+    )
+
+
+async def _sync_gateway_to_tenant(gw: TenantPaymentGateway, tenant: Tenant) -> None:
+    """Copia las credenciales de una pasarela activa al Tenant para que los servicios existentes funcionen."""
+    if gw.type == "stripe":
+        tenant.stripe_secret_key = gw.stripe_secret_key
+        tenant.stripe_webhook_secret = gw.stripe_webhook_secret
+        tenant.stripe_currency = gw.stripe_currency
+        tenant.stripe_enabled = True
+    elif gw.type == "redsys":
+        tenant.redsys_merchant_code = gw.redsys_merchant_code
+        tenant.redsys_terminal = gw.redsys_terminal
+        tenant.redsys_secret_key = gw.redsys_secret_key
+        tenant.redsys_currency = gw.redsys_currency
+        tenant.redsys_environment = gw.redsys_environment
+        tenant.redsys_enabled = True
+
+
+async def _clear_gateway_from_tenant(gw_type: str, tenant: Tenant) -> None:
+    """Limpia las credenciales del tipo de pasarela del Tenant cuando se desactiva."""
+    if gw_type == "stripe":
+        tenant.stripe_secret_key = None
+        tenant.stripe_webhook_secret = None
+        tenant.stripe_enabled = False
+    elif gw_type == "redsys":
+        tenant.redsys_merchant_code = None
+        tenant.redsys_terminal = None
+        tenant.redsys_secret_key = None
+        tenant.redsys_enabled = False
+
+
+@router.get("/tenants/{tenant_id}/payment-gateways", response_model=list[PaymentGatewayRead])
+async def list_payment_gateways(tenant_id: UUID, _: SuperAdminDep, session: SessionDep) -> list[PaymentGatewayRead]:
+    tenant = await session.get(Tenant, tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail={"error": {"code": "TENANT_NOT_FOUND", "message": "Empresa no encontrada."}})
+    result = await session.exec(
+        select(TenantPaymentGateway)
+        .where(TenantPaymentGateway.tenant_id == tenant_id)
+        .order_by(TenantPaymentGateway.created_at)
+    )
+    return [_gateway_to_read(gw) for gw in result.all()]
+
+
+@router.post("/tenants/{tenant_id}/payment-gateways", response_model=PaymentGatewayRead, status_code=status.HTTP_201_CREATED)
+async def create_payment_gateway(
+    tenant_id: UUID, data: PaymentGatewayCreate, _: SuperAdminDep, session: SessionDep
+) -> PaymentGatewayRead:
+    tenant = await session.get(Tenant, tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail={"error": {"code": "TENANT_NOT_FOUND", "message": "Empresa no encontrada."}})
+
+    gw = TenantPaymentGateway(
+        tenant_id=tenant_id,
+        type=data.type,
+        name=data.name,
+        is_active=False,
+    )
+    if data.type == "stripe":
+        gw.stripe_secret_key = encrypt_secret(data.stripe_secret_key) if data.stripe_secret_key else None
+        gw.stripe_webhook_secret = encrypt_secret(data.stripe_webhook_secret) if data.stripe_webhook_secret else None
+        gw.stripe_currency = data.stripe_currency
+    elif data.type == "redsys":
+        gw.redsys_merchant_code = data.redsys_merchant_code
+        gw.redsys_terminal = data.redsys_terminal
+        gw.redsys_secret_key = encrypt_secret(data.redsys_secret_key) if data.redsys_secret_key else None
+        gw.redsys_currency = data.redsys_currency
+        gw.redsys_environment = data.redsys_environment
+
+    session.add(gw)
+    await session.commit()
+    await session.refresh(gw)
+    return _gateway_to_read(gw)
+
+
+@router.patch("/tenants/{tenant_id}/payment-gateways/{gateway_id}", response_model=PaymentGatewayRead)
+async def update_payment_gateway(
+    tenant_id: UUID, gateway_id: UUID, data: PaymentGatewayUpdate, _: SuperAdminDep, session: SessionDep
+) -> PaymentGatewayRead:
+    gw = await session.get(TenantPaymentGateway, gateway_id)
+    if not gw or gw.tenant_id != tenant_id:
+        raise HTTPException(status_code=404, detail={"error": {"code": "GATEWAY_NOT_FOUND", "message": "Pasarela no encontrada."}})
+    tenant = await session.get(Tenant, tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail={"error": {"code": "TENANT_NOT_FOUND", "message": "Empresa no encontrada."}})
+
+    if data.name is not None:
+        gw.name = data.name
+
+    # Activar → desactivar otras del mismo tipo y sincronizar con Tenant
+    if data.is_active is True and not gw.is_active:
+        others = await session.exec(
+            select(TenantPaymentGateway).where(
+                TenantPaymentGateway.tenant_id == tenant_id,
+                TenantPaymentGateway.type == gw.type,
+                TenantPaymentGateway.id != gateway_id,
+                TenantPaymentGateway.is_active == True,  # noqa: E712
+            )
+        )
+        for other in others.all():
+            other.is_active = False
+            session.add(other)
+        gw.is_active = True
+        await _sync_gateway_to_tenant(gw, tenant)
+        # Auto-crear PaymentMethod si no existe
+        if gw.type == "stripe":
+            pm_type = PaymentMethodType.stripe
+            pm_name = "Stripe"
+        else:
+            pm_type = PaymentMethodType.redsys
+            pm_name = "Redsys TPV Virtual"
+        existing_pm = await session.exec(
+            select(PaymentMethod).where(
+                PaymentMethod.tenant_id == tenant_id,
+                PaymentMethod.method_type == pm_type,
+            )
+        )
+        if not existing_pm.first():
+            session.add(PaymentMethod(
+                tenant_id=tenant_id,
+                name=pm_name,
+                method_type=pm_type,
+                is_active=True,
+                is_default=False,
+                sort_order=10,
+                created_at=datetime.utcnow(),
+            ))
+    elif data.is_active is False and gw.is_active:
+        gw.is_active = False
+        await _clear_gateway_from_tenant(gw.type, tenant)
+
+    # Actualizar credenciales
+    if gw.type == "stripe":
+        if data.stripe_secret_key is not None:
+            gw.stripe_secret_key = encrypt_secret(data.stripe_secret_key) if data.stripe_secret_key else None
+        if data.stripe_webhook_secret is not None:
+            gw.stripe_webhook_secret = encrypt_secret(data.stripe_webhook_secret) if data.stripe_webhook_secret else None
+        if data.stripe_currency is not None:
+            gw.stripe_currency = data.stripe_currency
+        if gw.is_active:
+            await _sync_gateway_to_tenant(gw, tenant)
+    elif gw.type == "redsys":
+        if data.redsys_merchant_code is not None:
+            gw.redsys_merchant_code = data.redsys_merchant_code or None
+        if data.redsys_terminal is not None:
+            gw.redsys_terminal = data.redsys_terminal or None
+        if data.redsys_secret_key is not None:
+            gw.redsys_secret_key = encrypt_secret(data.redsys_secret_key) if data.redsys_secret_key else None
+        if data.redsys_currency is not None:
+            gw.redsys_currency = data.redsys_currency
+        if data.redsys_environment is not None:
+            gw.redsys_environment = data.redsys_environment
+        if gw.is_active:
+            await _sync_gateway_to_tenant(gw, tenant)
+
+    gw.updated_at = datetime.utcnow()
+    session.add(gw)
+    session.add(tenant)
+    await session.commit()
+    await session.refresh(gw)
+    return _gateway_to_read(gw)
+
+
+@router.delete("/tenants/{tenant_id}/payment-gateways/{gateway_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_payment_gateway(
+    tenant_id: UUID, gateway_id: UUID, _: SuperAdminDep, session: SessionDep
+) -> None:
+    gw = await session.get(TenantPaymentGateway, gateway_id)
+    if not gw or gw.tenant_id != tenant_id:
+        raise HTTPException(status_code=404, detail={"error": {"code": "GATEWAY_NOT_FOUND", "message": "Pasarela no encontrada."}})
+    if gw.is_active:
+        tenant = await session.get(Tenant, tenant_id)
+        if tenant:
+            await _clear_gateway_from_tenant(gw.type, tenant)
+            session.add(tenant)
+    await session.delete(gw)
+    await session.commit()

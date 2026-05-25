@@ -19,6 +19,7 @@ from pydantic import BaseModel
 
 from app.core.database import get_session
 from app.core.dependencies import get_current_user, require_role
+from app.models.payment_gateway import TenantPaymentGateway
 from app.models.tenant import Tenant
 from app.models.user import User, UserRole
 from app.schemas.tenant import TenantBrandingRead, TenantBrandingUpdate
@@ -160,6 +161,33 @@ async def get_template_variables(
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> dict:
     return {"variables": TEMPLATE_VARIABLES}
+
+
+@router.get(
+    "/settings/payment-gateways",
+    summary="Listar pasarelas de pago configuradas",
+    description="Devuelve las pasarelas de pago activas del tenant. Solo lectura para el panel empresa.",
+)
+async def get_payment_gateways(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    tenant_id: UUID | None = Query(default=None, description="Solo para super_admin"),
+) -> list[dict]:
+    effective_tenant_id = _resolve_tenant_id(current_user, tenant_id)
+    result = await session.exec(
+        select(TenantPaymentGateway)
+        .where(TenantPaymentGateway.tenant_id == effective_tenant_id)
+        .order_by(TenantPaymentGateway.created_at)
+    )
+    return [
+        {
+            "id": str(gw.id),
+            "type": gw.type,
+            "name": gw.name,
+            "is_active": gw.is_active,
+        }
+        for gw in result.all()
+    ]
 
 
 @router.patch(

@@ -33,6 +33,7 @@ from app.models.reservation_guest import (
 from app.models.guest_upload_token import GuestUploadToken
 from app.models.access_log import AccessLog
 from app.models.mail_log import MailLog
+from app.models.payment_gateway import TenantPaymentGateway
 from app.models.mail_notification_config import MailNotificationConfig
 from app.models.reservation_history import ReservationHistory
 from app.models.role_permission import RolePermission
@@ -84,4 +85,5 @@ __all__ = [
     "RolePermission",
     "SystemSettings",
     "UserPreference",
+    "TenantPaymentGateway",
 ]

@@ -176,6 +176,52 @@ export const systemApi = {
     client.post<{ status: string; to: string }>("/api/v1/superadmin/system-smtp/send-test-email", { to_email: toEmail }),
 };
 
+// ─── Pasarelas de pago ────────────────────────────────────────────────────────
+
+export interface PaymentGateway {
+  id: string;
+  tenant_id: string;
+  type: "stripe" | "redsys";
+  name: string;
+  is_active: boolean;
+  stripe_secret_key_set: boolean;
+  stripe_webhook_secret_set: boolean;
+  stripe_currency: string;
+  redsys_merchant_code: string | null;
+  redsys_terminal: string | null;
+  redsys_secret_key_set: boolean;
+  redsys_currency: string;
+  redsys_environment: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type PaymentGatewayCreatePayload = {
+  type: "stripe" | "redsys";
+  name: string;
+  stripe_secret_key?: string;
+  stripe_webhook_secret?: string;
+  stripe_currency?: string;
+  redsys_merchant_code?: string;
+  redsys_terminal?: string;
+  redsys_secret_key?: string;
+  redsys_currency?: string;
+  redsys_environment?: string;
+};
+
+export type PaymentGatewayUpdatePayload = Partial<PaymentGatewayCreatePayload & { is_active: boolean }>;
+
+export const paymentGatewaysApi = {
+  list: (tenantId: string) =>
+    client.get<PaymentGateway[]>(`/api/v1/superadmin/tenants/${tenantId}/payment-gateways`),
+  create: (tenantId: string, data: PaymentGatewayCreatePayload) =>
+    client.post<PaymentGateway>(`/api/v1/superadmin/tenants/${tenantId}/payment-gateways`, data),
+  update: (tenantId: string, gatewayId: string, data: PaymentGatewayUpdatePayload) =>
+    client.patch<PaymentGateway>(`/api/v1/superadmin/tenants/${tenantId}/payment-gateways/${gatewayId}`, data),
+  delete: (tenantId: string, gatewayId: string) =>
+    client.delete(`/api/v1/superadmin/tenants/${tenantId}/payment-gateways/${gatewayId}`),
+};
+
 // ─── Permisos por rol ─────────────────────────────────────────────────────────
 
 export const rolePermissionsApi = {

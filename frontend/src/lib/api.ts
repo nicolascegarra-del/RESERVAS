@@ -802,6 +802,13 @@ export interface TenantBranding {
   tagline: string | null;
 }
 
+export interface TenantPaymentGatewaySummary {
+  id: string;
+  type: "stripe" | "redsys";
+  name: string;
+  is_active: boolean;
+}
+
 export const settingsApi = {
   getBranding: () =>
     apiClient.get<TenantBranding>("/api/v1/settings/branding"),
@@ -820,6 +827,9 @@ export const settingsApi = {
       `/api/v1/settings/mail-notifications/${notificationType}`,
       data
     ),
+
+  getPaymentGateways: () =>
+    apiClient.get<TenantPaymentGatewaySummary[]>("/api/v1/settings/payment-gateways"),
 };
 
 // ─── Admin (super_admin only) ─────────────────────────────────────────────────
