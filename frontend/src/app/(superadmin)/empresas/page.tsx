@@ -115,13 +115,12 @@ function GatewayDialog({ tenantId, editing, onClose, onSaved }: { tenantId: stri
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-5 border-b">
-          <h2 className="text-base font-semibold text-klyp-navy">{editing ? "Editar pasarela" : "Añadir pasarela de pago"}</h2>
-          <button onClick={onClose} className="text-klyp-gray hover:text-klyp-navy text-xl leading-none">×</button>
-        </div>
-        <div className="p-5 space-y-4">
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{editing ? "Editar pasarela" : "Añadir pasarela de pago"}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
           {!editing && (
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Tipo de pasarela</label>
@@ -194,16 +193,16 @@ function GatewayDialog({ tenantId, editing, onClose, onSaved }: { tenantId: stri
             </>
           )}
           {err && <p className="text-sm text-red-600">{err}</p>}
-          <div className="flex gap-3 pt-2">
+          <DialogFooter className="flex-row gap-3 pt-2">
+            <button onClick={onClose} className="flex-1 inline-flex items-center justify-center h-10 px-4 rounded-md border border-input bg-background text-sm font-medium hover:bg-gray-50">Cancelar</button>
             <button onClick={() => void handleSubmit()} disabled={saving} className="flex-1 inline-flex items-center justify-center h-10 px-4 rounded-md bg-klyp-accent text-white text-sm font-medium hover:bg-klyp-accent/90 disabled:opacity-50">
               {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
               {editing ? "Guardar cambios" : "Añadir pasarela"}
             </button>
-            <button onClick={onClose} className="flex-1 inline-flex items-center justify-center h-10 px-4 rounded-md border border-input bg-background text-sm font-medium hover:bg-gray-50">Cancelar</button>
-          </div>
+          </DialogFooter>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

@@ -34,6 +34,7 @@ const NAV: NavEntry[] = [
       { href: "/ajustes", label: "SMTP" },
       { href: "/configuracion/superadmin-usuarios", label: "Usuarios SuperAdmin" },
       { href: "/configuracion-roles", label: "Permisos Roles" },
+      { href: "/configuracion/borrado-avanzado", label: "Borrado Avanzado" },
     ],
   },
   {
