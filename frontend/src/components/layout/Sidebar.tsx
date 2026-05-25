@@ -22,6 +22,14 @@ import { useTenantBrandingStore } from "@/stores/tenantBrandingStore";
 import { changeRequestsApi } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 
+const API_URL = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:8000";
+
+function resolveLogoUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  return `${API_URL}${url}`;
+}
+
 interface NavItem {
   label: string;
   href: string;
@@ -42,6 +50,7 @@ export function Sidebar() {
   const accentBg = accent_color || "#2E6DB4";
   const displayName = brand_name || tenant_name || "Klyp";
   const companyLabel = brand_name || tenant_name || null;
+  const resolvedLogoUrl = resolveLogoUrl(logo_url);
 
   const [pendingCount, setPendingCount] = useState(0);
 
@@ -120,9 +129,9 @@ export function Sidebar() {
     <aside className="flex h-full w-64 flex-col" style={{ backgroundColor: primaryBg }}>
       {/* Logo */}
       <div className="flex h-16 items-center border-b border-white/10 px-4 gap-3">
-        {logo_url ? (
+        {resolvedLogoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={logo_url} alt={displayName} className="h-8 w-8 rounded object-contain bg-white/10 p-0.5 shrink-0" />
+          <img src={resolvedLogoUrl} alt={displayName} className="h-8 w-8 rounded object-contain bg-white/10 p-0.5 shrink-0" />
         ) : (
           <div className="h-8 w-8 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: accentBg }}>
             <span className="text-white font-bold text-sm">{displayName.charAt(0).toUpperCase()}</span>

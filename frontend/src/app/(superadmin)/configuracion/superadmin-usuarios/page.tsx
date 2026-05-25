@@ -2,16 +2,16 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  ShieldCheck, Plus, Loader2, Key, Trash2, UserCheck, UserX, RefreshCw,
+  ShieldCheck, Plus, Loader2, Key, Trash2, UserCheck, UserX, RefreshCw, MoreHorizontal, Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { superAdminUsersApi, type AdminUser } from "@/lib/superadminApi";
@@ -337,25 +337,40 @@ export default function SuperAdminUsersPage() {
                     <td className="px-4 py-3 hidden lg:table-cell text-gray-500 text-xs whitespace-nowrap">
                       {new Date(u.created_at).toLocaleDateString("es-ES")}
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        {!isSelf && (
-                          <>
-                            <Button variant="outline" size="sm" className="h-8 px-2 text-xs" onClick={() => setEditUser(u)}>
-                              Editar
+                    <td className="px-4 py-3 text-right">
+                      {!isSelf && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-400 hover:text-gray-700">
+                              <MoreHorizontal className="h-4 w-4" />
                             </Button>
-                            <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => setResetUserId(u.id)} title="Cambiar contraseña">
-                              <Key className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => void toggleActive(u)} title={u.is_active ? "Desactivar" : "Activar"}>
-                              {u.is_active ? <UserX className="h-4 w-4 text-orange-500" /> : <UserCheck className="h-4 w-4 text-green-500" />}
-                            </Button>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setDeleteUser(u)} title="Eliminar">
-                              <Trash2 className="h-4 w-4 text-red-500" />
-                            </Button>
-                          </>
-                        )}
-                      </div>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-44">
+                            <DropdownMenuItem onClick={() => setEditUser(u)} className="cursor-pointer">
+                              <Pencil className="h-4 w-4 mr-2" />
+                              Editar nombre
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setResetUserId(u.id)} className="cursor-pointer">
+                              <Key className="h-4 w-4 mr-2" />
+                              Cambiar contraseña
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => void toggleActive(u)} className="cursor-pointer">
+                              {u.is_active
+                                ? <><UserX className="h-4 w-4 mr-2 text-orange-500" />Desactivar</>
+                                : <><UserCheck className="h-4 w-4 mr-2 text-green-600" />Activar</>
+                              }
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => setDeleteUser(u)}
+                              className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Eliminar
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
                     </td>
                   </tr>
                 );

@@ -260,7 +260,7 @@ export default function SuperAdminMailLogsPage() {
                 <th className={thClass} onClick={() => handleSort("sent_at")}>
                   <span className="inline-flex items-center">Fecha<SortIcon col="sent_at" sortKey={sortKey} sortDir={sortDir} /></span>
                 </th>
-                <th className="px-4 py-3 w-10" />
+                <th className="px-4 py-3 font-medium text-gray-600 text-left">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">

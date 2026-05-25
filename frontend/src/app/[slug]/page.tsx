@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Settings, MapPin } from "lucide-react";
+import { MapPin, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BookingSearchForm } from "@/components/booking/BookingSearchForm";
 import { AccommodationResultCard } from "@/components/booking/AccommodationResultCard";
@@ -18,6 +18,13 @@ import {
 const DEFAULT_PRIMARY = "#051937";
 const DEFAULT_ACCENT = "#2E6DB4";
 const APP_NAME = process.env["NEXT_PUBLIC_APP_NAME"] ?? "Klyp RESERVAS";
+const API_URL = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:8000";
+
+function resolveLogoUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  return `${API_URL}${url}`;
+}
 
 export default function TenantLandingPage() {
   const params = useParams();
@@ -61,6 +68,8 @@ export default function TenantLandingPage() {
   const tagline =
     branding?.tagline ??
     "Consulta disponibilidad y precios al instante. Sin registro necesario.";
+
+  const logoUrl = resolveLogoUrl(branding?.logo_url);
 
   const handleSearch = async (data: PublicAvailabilityRequest) => {
     setIsSearching(true);
@@ -110,12 +119,12 @@ export default function TenantLandingPage() {
       <header style={{ backgroundColor: primaryColor }} className="shadow-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
           <div className="flex items-center gap-3">
-            {branding?.logo_url ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
+            {logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={branding.logo_url}
+                src={logoUrl}
                 alt={displayName}
-                className="h-10 w-auto max-w-[160px] object-contain"
+                className="h-10 w-auto max-w-[180px] object-contain"
               />
             ) : (
               <>
@@ -123,22 +132,7 @@ export default function TenantLandingPage() {
                 <span className="text-xl font-bold text-white">{displayName}</span>
               </>
             )}
-            {branding?.logo_url && (
-              <span className="text-xl font-bold text-white">{displayName}</span>
-            )}
           </div>
-          <Button
-            asChild
-            variant="ghost"
-            size="sm"
-            className="min-h-[44px] text-white/80 hover:text-white hover:bg-white/10"
-          >
-            <Link href="/login">
-              <Settings className="mr-2 h-4 w-4" />
-              <span className="hidden sm:inline">Área de gestión</span>
-              <span className="sm:hidden">Gestión</span>
-            </Link>
-          </Button>
         </div>
       </header>
 
@@ -234,8 +228,17 @@ export default function TenantLandingPage() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-klyp-pale bg-white py-4 text-center text-xs text-klyp-gray">
-        {displayName} &copy; {new Date().getFullYear()} · Powered by Klyp
+      <footer className="border-t border-klyp-pale bg-white py-4 px-4">
+        <div className="mx-auto max-w-6xl flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-klyp-gray">
+          <span>{displayName} &copy; {new Date().getFullYear()} · Powered by Klyp</span>
+          <Link
+            href="/login"
+            className="inline-flex items-center gap-1 text-klyp-gray/60 hover:text-klyp-gray transition-colors"
+          >
+            <Settings className="h-3 w-3" />
+            Área de gestión
+          </Link>
+        </div>
       </footer>
     </div>
   );

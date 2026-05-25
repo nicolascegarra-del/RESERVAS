@@ -10,6 +10,9 @@ import { useTenantBrandingStore } from "@/stores/tenantBrandingStore";
 import { settingsApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 
+const DEFAULT_PRIMARY = "#051937";
+const DEFAULT_ACCENT = "#2E6DB4";
+
 export default function DashboardLayout({
   children,
 }: {
@@ -18,7 +21,7 @@ export default function DashboardLayout({
   const router = useRouter();
   const { isAuthenticated, user, selectedTenantId, selectedTenantName, setSelectedTenant } =
     useAuthStore();
-  const { setBranding, clearBranding } = useTenantBrandingStore();
+  const { setBranding, clearBranding, primary_color, accent_color } = useTenantBrandingStore();
 
   const isSuperAdmin = user?.role === "super_admin";
   const effectiveTenantId = isSuperAdmin ? selectedTenantId : user?.tenant_id;
@@ -59,8 +62,19 @@ export default function DashboardLayout({
     router.replace("/empresas");
   };
 
+  const brandPrimary = primary_color ?? DEFAULT_PRIMARY;
+  const brandAccent = accent_color ?? DEFAULT_ACCENT;
+
   return (
-    <div className="flex h-screen overflow-hidden bg-klyp-pale">
+    <div
+      className="flex h-screen overflow-hidden bg-klyp-pale"
+      style={{
+        "--color-klyp-navy": brandPrimary,
+        "--color-klyp-accent": brandAccent,
+        "--klyp-navy": brandPrimary,
+        "--klyp-accent": brandAccent,
+      } as React.CSSProperties}
+    >
       {/* Sidebar — oculto en móvil, visible en desktop */}
       <div className="hidden md:flex md:flex-shrink-0">
         <Sidebar />
