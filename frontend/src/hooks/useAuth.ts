@@ -37,15 +37,14 @@ export function useAuth(): UseAuthReturn {
       sub: string;
       role: string;
       tenant_id: string | null;
+      full_name?: string;
       exp: number;
     };
 
-    // Construimos un objeto User mínimo desde el token
-    // En sprints futuros se puede enriquecer con un endpoint /me
     const user: User = {
       id: payload.sub,
       email,
-      full_name: "",
+      full_name: payload.full_name ?? "",
       role: payload.role as User["role"],
       tenant_id: payload.tenant_id,
       is_active: true,

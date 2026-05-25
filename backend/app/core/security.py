@@ -47,6 +47,7 @@ def create_access_token(
     user_id: UUID,
     role: str,
     tenant_id: UUID | None = None,
+    full_name: str = "",
 ) -> str:
     """
     Crea un JWT de acceso con expiración corta (15 min por defecto).
@@ -55,6 +56,7 @@ def create_access_token(
         user_id: ID del usuario autenticado.
         role: Rol del usuario (super_admin, company_admin, reception).
         tenant_id: ID del tenant al que pertenece el usuario (None para super_admin).
+        full_name: Nombre completo del usuario para mostrar en la UI.
 
     Returns:
         JWT firmado como string.
@@ -64,6 +66,7 @@ def create_access_token(
         "sub": str(user_id),
         "role": role,
         "tenant_id": str(tenant_id) if tenant_id else None,
+        "full_name": full_name,
         "exp": expire,
         "type": "access",
     }

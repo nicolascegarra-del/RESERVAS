@@ -6,6 +6,8 @@ import { LogOut, ShieldAlert } from "lucide-react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { useAuthStore } from "@/stores/authStore";
+import { useTenantBrandingStore } from "@/stores/tenantBrandingStore";
+import { settingsApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 
 export default function DashboardLayout({
@@ -16,17 +18,38 @@ export default function DashboardLayout({
   const router = useRouter();
   const { isAuthenticated, user, selectedTenantId, selectedTenantName, setSelectedTenant } =
     useAuthStore();
+  const { setBranding, clearBranding } = useTenantBrandingStore();
 
   const isSuperAdmin = user?.role === "super_admin";
+  const effectiveTenantId = isSuperAdmin ? selectedTenantId : user?.tenant_id;
 
   useEffect(() => {
     if (!isAuthenticated) {
       router.replace("/login");
     } else if (isSuperAdmin && !selectedTenantId) {
-      // Superadmin sin empresa seleccionada → volver al panel superadmin
       router.replace("/empresas");
     }
   }, [isAuthenticated, isSuperAdmin, selectedTenantId, router]);
+
+  useEffect(() => {
+    if (!effectiveTenantId) { clearBranding(); return; }
+    const params = isSuperAdmin && selectedTenantId
+      ? `?tenant_id=${selectedTenantId}`
+      : "";
+    void settingsApi.getBranding()
+      .then((r) => {
+        setBranding({
+          primary_color: r.data.primary_color,
+          accent_color: r.data.accent_color,
+          brand_name: r.data.brand_name,
+          logo_url: r.data.logo_url,
+          tenant_name: selectedTenantName ?? null,
+        });
+      })
+      .catch(() => { /* usa colores por defecto */ });
+    void params;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveTenantId]);
 
   if (!isAuthenticated) return null;
   if (isSuperAdmin && !selectedTenantId) return null;

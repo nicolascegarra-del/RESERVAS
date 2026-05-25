@@ -1,27 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ShieldCheck, RefreshCw, CheckCircle, XCircle, ChevronLeft, ChevronRight, SlidersHorizontal, Trash2, GripVertical } from "lucide-react";
+import {
+  ShieldCheck, RefreshCw, CheckCircle, XCircle,
+  ChevronLeft, ChevronRight, SlidersHorizontal, Trash2, GripVertical,
+  ChevronsUpDown, ChevronUp, ChevronDown,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
+  AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { accessLogsApi } from "@/lib/api";
 import type { AccessLog } from "@/lib/api";
@@ -48,6 +42,8 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 type ColKey = "evento" | "usuario" | "rol" | "ip" | "detalle" | "fecha";
+type SortKey = ColKey;
+type SortDir = "asc" | "desc";
 
 const ALL_COLS: { key: ColKey; label: string }[] = [
   { key: "evento",  label: "Evento"  },
@@ -78,6 +74,33 @@ function loadAccColState(): { visible: Set<ColKey>; order: ColKey[] } {
   return { visible: DEFAULT_COLS, order: [...ALL_COL_KEYS_ACC] };
 }
 
+function getColValue(log: AccessLog, key: ColKey): string {
+  if (key === "evento") return log.event_type;
+  if (key === "usuario") return log.user_email;
+  if (key === "rol") return log.user_role ?? "";
+  if (key === "ip") return log.ip_address ?? "";
+  if (key === "detalle") return log.detail ?? "";
+  if (key === "fecha") return log.accessed_at;
+  return "";
+}
+
+function sortItems(items: AccessLog[], key: SortKey | null, dir: SortDir): AccessLog[] {
+  if (!key) return items;
+  return [...items].sort((a, b) => {
+    const av = getColValue(a, key);
+    const bv = getColValue(b, key);
+    const cmp = av.localeCompare(bv, "es", { sensitivity: "base" });
+    return dir === "asc" ? cmp : -cmp;
+  });
+}
+
+function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey | null; sortDir: SortDir }) {
+  if (sortKey !== col) return <ChevronsUpDown className="h-3.5 w-3.5 ml-1 opacity-30" />;
+  return sortDir === "asc"
+    ? <ChevronUp className="h-3.5 w-3.5 ml-1 text-klyp-accent" />
+    : <ChevronDown className="h-3.5 w-3.5 ml-1 text-klyp-accent" />;
+}
+
 function EventIcon({ type }: { type: string }) {
   if (type === "login_success") return <CheckCircle className="h-4 w-4 text-green-600" />;
   return <XCircle className="h-4 w-4 text-red-500" />;
@@ -93,8 +116,9 @@ export default function AccessLogsPage() {
   const [emailSearch, setEmailSearch] = useState("");
   const [emailInput, setEmailInput] = useState("");
   const [clearing, setClearing] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
 
-  // ─── Columnas persistentes ─────────────────────────────────────────────────
   const [visibleCols, setVisibleCols] = useState<Set<ColKey>>(DEFAULT_COLS);
   const [colOrder, setColOrder] = useState<ColKey[]>([...ALL_COL_KEYS_ACC]);
   const [dragColKey, setDragColKey] = useState<ColKey | null>(null);
@@ -119,9 +143,6 @@ export default function AccessLogsPage() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const colSpan = visibleCols.size;
-
-  // ─── Datos ────────────────────────────────────────────────────────────────
   const load = useCallback(async (p: number, ef: string, email: string) => {
     setLoading(true);
     try {
@@ -144,8 +165,12 @@ export default function AccessLogsPage() {
 
   useEffect(() => { void load(1, eventFilter, emailSearch); }, [load, eventFilter, emailSearch]);
 
-  function handleEventChange(v: string) { setEventFilter(v); setPage(1); }
-  function handleEmailSearch() { setEmailSearch(emailInput); setPage(1); }
+  function handleSort(key: SortKey) {
+    if (!visibleCols.has(key)) return;
+    if (sortKey === key) setSortDir((d) => d === "asc" ? "desc" : "asc");
+    else { setSortKey(key); setSortDir("asc"); }
+  }
+
   function handlePage(p: number) { setPage(p); void load(p, eventFilter, emailSearch); }
 
   async function handleClear() {
@@ -153,10 +178,12 @@ export default function AccessLogsPage() {
     try {
       await accessLogsApi.deleteAll();
       void load(1, eventFilter, emailSearch);
-    } finally {
-      setClearing(false);
-    }
+    } finally { setClearing(false); }
   }
+
+  const displayedItems = sortItems(items, sortKey, sortDir);
+  const colSpan = visibleCols.size;
+  const thClass = "text-left px-4 py-3 font-medium text-gray-600 cursor-pointer select-none hover:bg-gray-100";
 
   return (
     <div className="space-y-6">
@@ -172,35 +199,26 @@ export default function AccessLogsPage() {
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void load(page, eventFilter, emailSearch)}
-            disabled={loading}
-          >
+          <Button variant="outline" size="sm" onClick={() => void load(page, eventFilter, emailSearch)} disabled={loading}>
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
             Actualizar
           </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="outline" size="sm" className="text-red-600 border-red-200 hover:bg-red-50" disabled={clearing || total === 0}>
-                <Trash2 className="h-4 w-4 mr-2" />
-                Vaciar logs
+                <Trash2 className="h-4 w-4 mr-2" />Vaciar logs
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>¿Vaciar todos los logs de acceso?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Se eliminarán permanentemente los {total} registros de acceso de todos los usuarios. Esta acción no se puede deshacer.
+                  Se eliminarán permanentemente los {total} registros de acceso. Esta acción no se puede deshacer.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction
-                  className="bg-red-600 hover:bg-red-700"
-                  onClick={() => void handleClear()}
-                >
+                <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={() => void handleClear()}>
                   Sí, vaciar todo
                 </AlertDialogAction>
               </AlertDialogFooter>
@@ -211,7 +229,7 @@ export default function AccessLogsPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center">
-        <Select value={eventFilter} onValueChange={handleEventChange}>
+        <Select value={eventFilter} onValueChange={(v) => { setEventFilter(v); setPage(1); }}>
           <SelectTrigger className="w-full sm:w-48">
             <SelectValue placeholder="Tipo de evento" />
           </SelectTrigger>
@@ -219,6 +237,7 @@ export default function AccessLogsPage() {
             <SelectItem value="all">Todos los eventos</SelectItem>
             <SelectItem value="login_success">Login Exitoso</SelectItem>
             <SelectItem value="login_failure">Login Fallido</SelectItem>
+            <SelectItem value="logout">Logout</SelectItem>
           </SelectContent>
         </Select>
         <div className="flex gap-2 flex-1 sm:max-w-xs">
@@ -226,17 +245,22 @@ export default function AccessLogsPage() {
             placeholder="Buscar por email..."
             value={emailInput}
             onChange={(e) => setEmailInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleEmailSearch()}
+            onKeyDown={(e) => { if (e.key === "Enter") setEmailSearch(emailInput); }}
             className="text-sm"
           />
-          <Button variant="outline" size="sm" onClick={handleEmailSearch} className="shrink-0">
+          <Button variant="outline" size="sm" onClick={() => setEmailSearch(emailInput)} className="shrink-0">
             Buscar
           </Button>
+          {emailSearch && (
+            <Button variant="ghost" size="sm" onClick={() => { setEmailSearch(""); setEmailInput(""); }} className="shrink-0">
+              ✕
+            </Button>
+          )}
         </div>
 
         {/* Selector de columnas */}
         <div className="relative ml-auto" ref={colMenuRef}>
-          <Button variant="outline" size="sm" className="h-[44px] gap-2" onClick={() => setShowColMenu((v) => !v)}>
+          <Button variant="outline" size="sm" className="h-9 gap-2" onClick={() => setShowColMenu((v) => !v)}>
             <SlidersHorizontal className="h-4 w-4" />Columnas
           </Button>
           {showColMenu && (
@@ -292,24 +316,24 @@ export default function AccessLogsPage() {
               <tr className="bg-gray-50 border-b border-gray-200">
                 {colOrder.filter((k) => visibleCols.has(k)).map((k) => {
                   const label = ALL_COLS.find((c) => c.key === k)?.label ?? k;
-                  return <th key={k} className="text-left px-4 py-3 font-medium text-gray-600">{label}</th>;
+                  return (
+                    <th key={k} className={thClass} onClick={() => handleSort(k)}>
+                      <span className="inline-flex items-center">
+                        {label}<SortIcon col={k} sortKey={sortKey} sortDir={sortDir} />
+                      </span>
+                    </th>
+                  );
                 })}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading && (
-                <tr>
-                  <td colSpan={colSpan} className="px-4 py-12 text-center text-gray-400">Cargando…</td>
-                </tr>
+                <tr><td colSpan={colSpan} className="px-4 py-12 text-center text-gray-400">Cargando…</td></tr>
               )}
-              {!loading && items.length === 0 && (
-                <tr>
-                  <td colSpan={colSpan} className="px-4 py-12 text-center text-gray-400">
-                    No hay registros de acceso
-                  </td>
-                </tr>
+              {!loading && displayedItems.length === 0 && (
+                <tr><td colSpan={colSpan} className="px-4 py-12 text-center text-gray-400">No hay registros de acceso</td></tr>
               )}
-              {!loading && items.map((log) => (
+              {!loading && displayedItems.map((log) => (
                 <tr key={log.id} className="hover:bg-gray-50 transition-colors">
                   {colOrder.filter((k) => visibleCols.has(k)).map((k) => {
                     if (k === "evento") return (
@@ -348,9 +372,7 @@ export default function AccessLogsPage() {
 
         {pages > 1 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
-            <p className="text-xs text-gray-500">
-              Página {page} de {pages} · {total} registros
-            </p>
+            <p className="text-xs text-gray-500">Página {page} de {pages} · {total} registros</p>
             <div className="flex gap-1">
               <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => handlePage(page - 1)}>
                 <ChevronLeft className="h-4 w-4" />

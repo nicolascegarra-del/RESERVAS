@@ -97,6 +97,7 @@ async def login_user(
         user_id=user.id,
         role=user.role.value,
         tenant_id=user.tenant_id,
+        full_name=user.full_name or "",
     )
     refresh_token = create_refresh_token(user_id=user.id)
 

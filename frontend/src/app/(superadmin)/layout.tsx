@@ -185,6 +185,9 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
 
       <div className="px-3 py-4 border-t border-white/10">
         <div className="px-3 py-2 mb-2">
+          {user.full_name && (
+            <p className="text-white text-xs font-semibold truncate">{user.full_name}</p>
+          )}
           <p className="text-white/60 text-xs truncate">{user.email}</p>
         </div>
         <Button

@@ -66,6 +66,7 @@ async def refresh_token(
         user_id=current_user.id,
         role=current_user.role.value,
         tenant_id=current_user.tenant_id,
+        full_name=current_user.full_name or "",
     )
     return TokenResponse(access_token=new_access_token)
 
