@@ -838,6 +838,7 @@ def _gateway_to_read(gw: TenantPaymentGateway) -> PaymentGatewayRead:
         redsys_secret_key_set=bool(gw.redsys_secret_key),
         redsys_currency=gw.redsys_currency,
         redsys_environment=gw.redsys_environment,
+        bizum_enabled=gw.bizum_enabled,
         created_at=gw.created_at,
         updated_at=gw.updated_at,
     )
@@ -857,6 +858,7 @@ async def _sync_gateway_to_tenant(gw: TenantPaymentGateway, tenant: Tenant) -> N
         tenant.redsys_currency = gw.redsys_currency
         tenant.redsys_environment = gw.redsys_environment
         tenant.redsys_enabled = True
+        tenant.redsys_bizum_enabled = gw.bizum_enabled
 
 
 async def _clear_gateway_from_tenant(gw_type: str, tenant: Tenant) -> None:
@@ -870,6 +872,7 @@ async def _clear_gateway_from_tenant(gw_type: str, tenant: Tenant) -> None:
         tenant.redsys_terminal = None
         tenant.redsys_secret_key = None
         tenant.redsys_enabled = False
+        tenant.redsys_bizum_enabled = False
 
 
 @router.get("/tenants/{tenant_id}/payment-gateways", response_model=list[PaymentGatewayRead])
@@ -909,6 +912,7 @@ async def create_payment_gateway(
         gw.redsys_secret_key = encrypt_secret(data.redsys_secret_key) if data.redsys_secret_key else None
         gw.redsys_currency = data.redsys_currency
         gw.redsys_environment = data.redsys_environment
+        gw.bizum_enabled = data.bizum_enabled
 
     session.add(gw)
     await session.commit()
@@ -993,6 +997,8 @@ async def update_payment_gateway(
             gw.redsys_currency = data.redsys_currency
         if data.redsys_environment is not None:
             gw.redsys_environment = data.redsys_environment
+        if data.bizum_enabled is not None:
+            gw.bizum_enabled = data.bizum_enabled
         if gw.is_active:
             await _sync_gateway_to_tenant(gw, tenant)
 

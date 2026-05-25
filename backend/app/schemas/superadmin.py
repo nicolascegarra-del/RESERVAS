@@ -235,6 +235,7 @@ class PaymentGatewayRead(BaseModel):
     redsys_secret_key_set: bool
     redsys_currency: str
     redsys_environment: str
+    bizum_enabled: bool
     created_at: datetime
     updated_at: datetime
 
@@ -254,6 +255,7 @@ class PaymentGatewayCreate(BaseModel):
     redsys_secret_key: str | None = None
     redsys_currency: str = Field(default="978", max_length=3)
     redsys_environment: str = Field(default="sandbox", max_length=20)
+    bizum_enabled: bool = False
 
 
 class PaymentGatewayUpdate(BaseModel):
@@ -269,3 +271,4 @@ class PaymentGatewayUpdate(BaseModel):
     redsys_secret_key: str | None = None
     redsys_currency: str | None = Field(default=None, max_length=3)
     redsys_environment: str | None = Field(default=None, max_length=20)
+    bizum_enabled: bool | None = None

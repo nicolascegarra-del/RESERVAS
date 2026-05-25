@@ -30,6 +30,7 @@ class TenantPaymentGateway(SQLModel, table=True):
     redsys_secret_key: str | None = Field(default=None, max_length=500)
     redsys_currency: str = Field(default="978", max_length=3)
     redsys_environment: str = Field(default="sandbox", max_length=20)
+    bizum_enabled: bool = Field(default=False)
 
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

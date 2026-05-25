@@ -304,6 +304,8 @@ async def initiate_payment(
         "DS_MERCHANT_URLOK": f"{frontend_url}/pago/ok?reserva={reservation.id}",
         "DS_MERCHANT_URLKO": f"{frontend_url}/pago/ko?reserva={reservation.id}",
     }
+    if getattr(tenant, "redsys_bizum_enabled", False):
+        params["DS_MERCHANT_PAYMETHODS"] = "xz"
 
     merchant_params = build_merchant_parameters(params)
     signature = sign_request(plain_secret_key, merchant_params, order_code)

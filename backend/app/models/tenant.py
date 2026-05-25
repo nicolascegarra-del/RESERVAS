@@ -71,3 +71,4 @@ class Tenant(SQLModel, table=True):
     redsys_currency: str = Field(default="978", max_length=3)
     redsys_environment: str = Field(default="sandbox", max_length=20)
     redsys_enabled: bool = Field(default=False)
+    redsys_bizum_enabled: bool = Field(default=False)

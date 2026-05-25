@@ -192,6 +192,7 @@ export interface PaymentGateway {
   redsys_secret_key_set: boolean;
   redsys_currency: string;
   redsys_environment: string;
+  bizum_enabled: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -207,6 +208,7 @@ export type PaymentGatewayCreatePayload = {
   redsys_secret_key?: string;
   redsys_currency?: string;
   redsys_environment?: string;
+  bizum_enabled?: boolean;
 };
 
 export type PaymentGatewayUpdatePayload = Partial<PaymentGatewayCreatePayload & { is_active: boolean }>;

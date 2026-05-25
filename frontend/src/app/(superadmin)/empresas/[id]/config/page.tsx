@@ -53,6 +53,7 @@ interface GatewayFormData {
   redsys_secret_key: string;
   redsys_currency: string;
   redsys_environment: string;
+  bizum_enabled: boolean;
 }
 
 function emptyForm(type: "stripe" | "redsys" = "stripe"): GatewayFormData {
@@ -67,6 +68,7 @@ function emptyForm(type: "stripe" | "redsys" = "stripe"): GatewayFormData {
     redsys_secret_key: "",
     redsys_currency: "978",
     redsys_environment: "sandbox",
+    bizum_enabled: false,
   };
 }
 
@@ -91,6 +93,7 @@ function GatewayDialog({ tenantId, editing, onClose, onSaved }: GatewayDialogPro
           redsys_secret_key: "",
           redsys_currency: editing.redsys_currency,
           redsys_environment: editing.redsys_environment,
+          bizum_enabled: editing.bizum_enabled,
         }
       : emptyForm(),
   );
@@ -116,6 +119,7 @@ function GatewayDialog({ tenantId, editing, onClose, onSaved }: GatewayDialogPro
           if (form.redsys_secret_key) payload["redsys_secret_key"] = form.redsys_secret_key;
           payload["redsys_currency"] = form.redsys_currency;
           payload["redsys_environment"] = form.redsys_environment;
+          payload["bizum_enabled"] = form.bizum_enabled;
         }
         const res = await paymentGatewaysApi.update(tenantId, editing.id, payload);
         onSaved(res.data);
@@ -131,6 +135,7 @@ function GatewayDialog({ tenantId, editing, onClose, onSaved }: GatewayDialogPro
           if (form.redsys_secret_key) payload["redsys_secret_key"] = form.redsys_secret_key;
           payload["redsys_currency"] = form.redsys_currency;
           payload["redsys_environment"] = form.redsys_environment;
+          payload["bizum_enabled"] = form.bizum_enabled;
         }
         const res = await paymentGatewaysApi.create(tenantId, payload);
         onSaved(res.data);
@@ -246,6 +251,21 @@ function GatewayDialog({ tenantId, editing, onClose, onSaved }: GatewayDialogPro
                   </select>
                 </div>
               </div>
+              <div className="flex items-start gap-3 rounded-lg border border-klyp-pale bg-klyp-pale/30 p-3">
+                <input
+                  type="checkbox"
+                  id="bizum-enabled"
+                  checked={form.bizum_enabled}
+                  onChange={(e) => setForm((p) => ({ ...p, bizum_enabled: e.target.checked }))}
+                  className="mt-0.5 h-4 w-4 shrink-0"
+                />
+                <div>
+                  <Label htmlFor="bizum-enabled" className="cursor-pointer">Activar Bizum</Label>
+                  <p className="text-xs text-klyp-gray mt-0.5">
+                    Permite pagar con Bizum además de tarjeta (usa las mismas credenciales Redsys).
+                  </p>
+                </div>
+              </div>
             </>
           )}
 
@@ -336,6 +356,9 @@ function GatewayTable({ gateways, onEdit, onToggle, onDelete, toggling, deleting
                     {" · "}Term: {gw.redsys_terminal ?? <span className="text-red-500">—</span>}
                     {" · "}SK: {gw.redsys_secret_key_set ? <span className="text-green-600">✓</span> : <span className="text-red-500">✗</span>}
                     {" · "}{gw.redsys_currency}
+                    {gw.bizum_enabled && (
+                      <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-700">Bizum</span>
+                    )}
                   </span>
                 )}
               </td>
